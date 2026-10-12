@@ -342,8 +342,10 @@ const MESI_AB=['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov'
 function weekLabel(key){
   const [y,w]=key.split('-W').map(Number);
   const s=isoWeekStart(y,w), e=new Date(s); e.setUTCDate(s.getUTCDate()+6);
-  const sm=MESI_AB[s.getUTCMonth()], em=MESI_AB[e.getUTCMonth()];
-  return {num:w, range:`${s.getUTCDate()} ${sm}–${e.getUTCDate()} ${em}`};
+  const fr=new Date(s); fr.setUTCDate(s.getUTCDate()+4); // venerdì
+  const sm=MESI_AB[s.getUTCMonth()], em=MESI_AB[e.getUTCMonth()], fm=MESI_AB[fr.getUTCMonth()];
+  return {num:w, range:`${s.getUTCDate()} ${sm}–${e.getUTCDate()} ${em}`,
+          mon:`${s.getUTCDate()} ${sm}`, fri:`${fr.getUTCDate()} ${fm}`};
 }
 function getCassaWeekly(co){
   const wk=STORE[co].weeks||{}, keys=Object.keys(wk).sort();
@@ -358,7 +360,7 @@ function getCassaWeekly(co){
     else saldo=null;
     prevClose=saldo; // la chiusura diventa l'apertura (lunedì) della settimana successiva
     const lab=weekLabel(k);
-    return {key:k, num:lab.num, range:lab.range, in:w.in||0, out:w.out||0, cnt:w.cnt||0, apertura, flusso, saldo};
+    return {key:k, num:lab.num, range:lab.range, mon:lab.mon, fri:lab.fri, in:w.in||0, out:w.out||0, cnt:w.cnt||0, apertura, flusso, saldo};
   });
   return {rows, obj, open, hasData:keys.length>0};
 }
@@ -700,13 +702,12 @@ function viewCassaWeek(d){
     const dF=(entrateMin!=null)?r.in-entrateMin:null;
     const dS=(saldoMin!=null&&r.saldo!=null)?r.saldo-saldoMin:null;
     trs+=`<tr>
-      <td>Sett. ${r.num}<div class="sm mut">${r.range}</div></td>
+      <td class="r">${r.apertura==null?'—':`<b>${eur(r.apertura)}</b>`}<div class="sm mut">lun ${r.mon}</div></td>
       <td class="r"><b>${eur(r.in)}</b></td>
       <td class="r">${dF==null?'—':`<span class="${dF>=0?'up':'down'}" style="font-weight:600">${dF>=0?'+':''}${eur(dF)}</span>`}</td>
       <td class="r">${eur(r.out)}</td>
       <td class="r">${eur(r.flusso)}</td>
-      <td class="r">${r.apertura==null?'—':eur(r.apertura)}</td>
-      <td class="r">${r.saldo==null?'—':eur(r.saldo)}</td>
+      <td class="r">${r.saldo==null?'—':`<b>${eur(r.saldo)}</b>`}<div class="sm mut">ven ${r.fri}</div></td>
       <td class="r">${dS==null?'—':`<span class="${dS>=0?'up':'down'}" style="font-weight:600">${dS>=0?'+':''}${eur(dS)}</span>`}</td>
     </tr>`;
   });
@@ -720,8 +721,8 @@ function viewCassaWeek(d){
       <div><div class="wk-h">Entrate settimanali <span class="sm mut">min ${entrateMin!=null?eur(entrateMin):'—'}</span></div><div id="wkFlusso"></div></div>
       <div><div class="wk-h">Saldo al venerdì <span class="sm mut">min ${saldoMin!=null?eur(saldoMin):'—'}</span></div><div id="wkSaldo"></div></div>
     </div>
-    <div class="tscroll" style="margin-top:16px"><table class="dtable matrix"><thead><tr><th>Settimana</th><th class="r">Entrate</th><th class="r">Δ vs obiettivo</th><th class="r">Uscite</th><th class="r">Flusso</th><th class="r">Saldo al lunedì</th><th class="r">Saldo al venerdì</th><th class="r">Δ vs obiettivo</th></tr></thead><tbody>${trs}</tbody></table></div>
-    <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Δ verde = sopra l'obiettivo (favorevole), rosso = sotto. Nel grafico le linee tratteggiate sono gli obiettivi minimi. Il <b>saldo al lunedì</b> è l'apertura della settimana (per la prima = saldo iniziale effettivo); il <b>saldo al venerdì</b> è la chiusura e coincide con il saldo al lunedì con cui inizia la settimana successiva.</div>
+    <div class="tscroll" style="margin-top:16px"><table class="dtable matrix"><thead><tr><th class="r">Saldo al lunedì</th><th class="r">Entrate</th><th class="r">Δ vs obiettivo</th><th class="r">Uscite</th><th class="r">Flusso</th><th class="r">Saldo effettivo al venerdì</th><th class="r">Δ vs obiettivo</th></tr></thead><tbody>${trs}</tbody></table></div>
+    <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Δ verde = sopra l'obiettivo (favorevole), rosso = sotto. Nel grafico le linee tratteggiate sono gli obiettivi minimi. Il <b>saldo al lunedì</b> (con la data del lunedì) è l'apertura della settimana — per la prima è il saldo iniziale effettivo; il <b>saldo effettivo al venerdì</b> (con la data del venerdì) è la chiusura e coincide con il saldo al lunedì della settimana successiva.</div>
   </div>`;
 }
 
