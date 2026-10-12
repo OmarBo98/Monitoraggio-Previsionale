@@ -348,13 +348,17 @@ function weekLabel(key){
 function getCassaWeekly(co){
   const wk=STORE[co].weeks||{}, keys=Object.keys(wk).sort();
   const obj=STORE[co].objectives||{}, open=STORE[co].saldoIniziale;
-  let cum=(open!=null?open:0);
+  let prevClose=(open!=null?open:null);
   const rows=keys.map(k=>{
     const w=wk[k], flusso=(w.in||0)-(w.out||0);
-    cum+=flusso;
-    const saldo=(w.saldo!=null)?w.saldo:((open!=null)?cum:null);
+    const apertura=prevClose; // saldo al lunedì (inizio settimana) = chiusura settimana precedente, o saldo iniziale per la 1ª
+    let saldo;
+    if(w.saldo!=null) saldo=w.saldo;              // saldo al venerdì dall'estratto se presente
+    else if(apertura!=null) saldo=apertura+flusso; // altrimenti apertura + flusso della settimana
+    else saldo=null;
+    prevClose=saldo; // la chiusura diventa l'apertura (lunedì) della settimana successiva
     const lab=weekLabel(k);
-    return {key:k, num:lab.num, range:lab.range, in:w.in||0, out:w.out||0, cnt:w.cnt||0, flusso, saldo};
+    return {key:k, num:lab.num, range:lab.range, in:w.in||0, out:w.out||0, cnt:w.cnt||0, apertura, flusso, saldo};
   });
   return {rows, obj, open, hasData:keys.length>0};
 }
@@ -701,6 +705,7 @@ function viewCassaWeek(d){
       <td class="r">${dF==null?'—':`<span class="${dF>=0?'up':'down'}" style="font-weight:600">${dF>=0?'+':''}${eur(dF)}</span>`}</td>
       <td class="r">${eur(r.out)}</td>
       <td class="r">${eur(r.flusso)}</td>
+      <td class="r">${r.apertura==null?'—':eur(r.apertura)}</td>
       <td class="r">${r.saldo==null?'—':eur(r.saldo)}</td>
       <td class="r">${dS==null?'—':`<span class="${dS>=0?'up':'down'}" style="font-weight:600">${dS>=0?'+':''}${eur(dS)}</span>`}</td>
     </tr>`;
@@ -715,8 +720,8 @@ function viewCassaWeek(d){
       <div><div class="wk-h">Entrate settimanali <span class="sm mut">min ${entrateMin!=null?eur(entrateMin):'—'}</span></div><div id="wkFlusso"></div></div>
       <div><div class="wk-h">Saldo al venerdì <span class="sm mut">min ${saldoMin!=null?eur(saldoMin):'—'}</span></div><div id="wkSaldo"></div></div>
     </div>
-    <div class="tscroll" style="margin-top:16px"><table class="dtable matrix"><thead><tr><th>Settimana</th><th class="r">Entrate</th><th class="r">Δ vs obiettivo</th><th class="r">Uscite</th><th class="r">Flusso</th><th class="r">Saldo al venerdì</th><th class="r">Δ vs obiettivo</th></tr></thead><tbody>${trs}</tbody></table></div>
-    <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Δ verde = sopra l'obiettivo (favorevole), rosso = sotto. Nel grafico le linee tratteggiate sono gli obiettivi minimi.</div>
+    <div class="tscroll" style="margin-top:16px"><table class="dtable matrix"><thead><tr><th>Settimana</th><th class="r">Entrate</th><th class="r">Δ vs obiettivo</th><th class="r">Uscite</th><th class="r">Flusso</th><th class="r">Saldo al lunedì</th><th class="r">Saldo al venerdì</th><th class="r">Δ vs obiettivo</th></tr></thead><tbody>${trs}</tbody></table></div>
+    <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Δ verde = sopra l'obiettivo (favorevole), rosso = sotto. Nel grafico le linee tratteggiate sono gli obiettivi minimi. Il <b>saldo al lunedì</b> è l'apertura della settimana (per la prima = saldo iniziale effettivo); il <b>saldo al venerdì</b> è la chiusura e coincide con il saldo al lunedì con cui inizia la settimana successiva.</div>
   </div>`;
 }
 
