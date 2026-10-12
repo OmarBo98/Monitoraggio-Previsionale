@@ -279,7 +279,7 @@ const sumN=(a,n)=>a.slice(0,n).reduce((s,x)=>s+(x==null?0:x),0);
 
 /* ---------- persistent store (localStorage, migrate-safe) ---------- */
 const SKEY='ff_monitoraggio_v2';
-const OBJ_DEF={sanitech:{saldoMin:12500,flussoMin:12500},nsa:{saldoMin:15000,flussoMin:8700}};
+const OBJ_DEF={sanitech:{saldoMin:12500,entrateMin:12500},nsa:{saldoMin:12500,entrateMin:12500}};
 function migrate(s){
   s=s||{}; s.version=3;
   for(const co of ['sanitech','nsa']){
@@ -295,6 +295,7 @@ function migrate(s){
       }
     }
     if(!s[co].objectives)s[co].objectives={...OBJ_DEF[co]};
+    if(s[co].cassaObjV!==2){s[co].objectives.saldoMin=12500;s[co].objectives.entrateMin=12500;s[co].saldoIniziale=12500;s[co].cassaObjV=2;}
     if(s[co].saldoIniziale===undefined)s[co].saldoIniziale=null;
     if(!s[co].accantonamenti)s[co].accantonamenti={iva:{},tfr:{}};
     s[co].accantonamenti.iva=s[co].accantonamenti.iva||{};
@@ -670,21 +671,21 @@ function viewCassa(d){
 function setGran(g){state.cassaGran=g;render();}
 function viewCassaWeek(d){
   const wk=getCassaWeekly(state.co), obj=wk.obj, co=state.co;
-  const saldoMin=obj.saldoMin, flussoMin=obj.flussoMin, open=wk.open;
+  const saldoMin=obj.saldoMin, entrateMin=obj.entrateMin, open=wk.open;
   const labels=wk.rows.map(r=>'S'+r.num);
   if(wk.hasData){
-    q(()=>drawWeekSeries('wkFlusso',{labels,values:wk.rows.map(r=>r.flusso),threshold:flussoMin,type:'bar',favorHigh:true}));
+    q(()=>drawWeekSeries('wkFlusso',{labels,values:wk.rows.map(r=>r.in),threshold:entrateMin,type:'bar',favorHigh:true}));
     q(()=>drawWeekSeries('wkSaldo',{labels,values:wk.rows.map(r=>r.saldo),threshold:saldoMin,type:'line',favorHigh:true}));
   }
   const objPanel=`
     <div class="panel">
-      <div class="panel-head"><div><h3>Obiettivi settimanali · ${DATA[co].short}</h3><p>Imposta i minimi e il saldo iniziale del periodo. Lo scostamento è calcolato su ogni settimana.</p></div></div>
+      <div class="panel-head"><div><h3>Obiettivi settimanali · ${DATA[co].short}</h3><p>Imposta i tre indicatori settimanali. Lo scostamento è calcolato su ogni settimana.</p></div></div>
       <div class="obj-grid">
-        <div><label>Saldo minimo a fine settimana</label><div class="inwrap"><input type="number" step="100" value="${saldoMin!=null?saldoMin:''}" onchange="setObjective('saldoMin',this.value)"><span>€</span></div></div>
-        <div><label>Flusso minimo per settimana</label><div class="inwrap"><input type="number" step="100" value="${flussoMin!=null?flussoMin:''}" onchange="setObjective('flussoMin',this.value)"><span>€</span></div></div>
-        <div><label>Saldo iniziale del periodo</label><div class="inwrap"><input type="number" step="100" value="${open!=null?open:''}" placeholder="opzionale" onchange="setSaldoIniziale(this.value)"><span>€</span></div></div>
+        <div><label>Entrate minime settimanali</label><div class="inwrap"><input type="number" step="100" value="${entrateMin!=null?entrateMin:''}" onchange="setObjective('entrateMin',this.value)"><span>€</span></div></div>
+        <div><label>Saldo minimo al venerdì</label><div class="inwrap"><input type="number" step="100" value="${saldoMin!=null?saldoMin:''}" onchange="setObjective('saldoMin',this.value)"><span>€</span></div></div>
+        <div><label>Saldo iniziale effettivo al lunedì</label><div class="inwrap"><input type="number" step="100" value="${open!=null?open:''}" onchange="setSaldoIniziale(this.value)"><span>€</span></div></div>
       </div>
-      <div class="note" style="margin-top:12px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Il <b>saldo a fine settimana</b> è preso dalla colonna Saldo dell'estratto se presente; altrimenti è calcolato come saldo iniziale + somma dei flussi settimanali. Carica gli estratti dal box <b>Estratto conto</b> in Aggiornamento.</div>
+      <div class="note" style="margin-top:12px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Il <b>saldo al venerdì</b> è preso dalla colonna Saldo dell'estratto se presente; altrimenti è calcolato come saldo iniziale effettivo al lunedì + somma dei flussi settimanali. Carica gli estratti dal box <b>Estratto conto</b> in Aggiornamento.</div>
     </div>`;
   if(!wk.hasData){
     return objPanel+`<div class="panel"><div class="empty"><div class="ic" style="background:var(--ink-100)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-400)" stroke-width="1.8" style="width:22px;height:22px"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div><h3>Nessun dato settimanale</h3><p>Carica un estratto conto (anche di una sola settimana) dalla scheda Aggiornamento: i movimenti verranno raggruppati per settimana e vedrai qui l'andamento e lo scostamento dagli obiettivi.</p><button class="btn btn-primary" onclick="goView('aggiornamento')">Vai in Aggiornamento →</button></div></div>`;
@@ -692,29 +693,29 @@ function viewCassaWeek(d){
   // table rows
   let trs='';
   wk.rows.forEach(r=>{
-    const dF=(flussoMin!=null)?r.flusso-flussoMin:null;
+    const dF=(entrateMin!=null)?r.in-entrateMin:null;
     const dS=(saldoMin!=null&&r.saldo!=null)?r.saldo-saldoMin:null;
     trs+=`<tr>
       <td>Sett. ${r.num}<div class="sm mut">${r.range}</div></td>
-      <td class="r">${eur(r.in)}</td>
-      <td class="r">${eur(r.out)}</td>
-      <td class="r"><b>${eur(r.flusso)}</b></td>
+      <td class="r"><b>${eur(r.in)}</b></td>
       <td class="r">${dF==null?'—':`<span class="${dF>=0?'up':'down'}" style="font-weight:600">${dF>=0?'+':''}${eur(dF)}</span>`}</td>
+      <td class="r">${eur(r.out)}</td>
+      <td class="r">${eur(r.flusso)}</td>
       <td class="r">${r.saldo==null?'—':eur(r.saldo)}</td>
       <td class="r">${dS==null?'—':`<span class="${dS>=0?'up':'down'}" style="font-weight:600">${dS>=0?'+':''}${eur(dS)}</span>`}</td>
     </tr>`;
   });
-  const nFlussoOk=wk.rows.filter(r=>flussoMin!=null&&r.flusso>=flussoMin).length;
+  const nFlussoOk=wk.rows.filter(r=>entrateMin!=null&&r.in>=entrateMin).length;
   const nSaldoOk=wk.rows.filter(r=>saldoMin!=null&&r.saldo!=null&&r.saldo>=saldoMin).length;
   const nSaldoTot=wk.rows.filter(r=>r.saldo!=null).length;
   return objPanel+`
   <div class="panel">
-    <div class="panel-head"><div><h3>Andamento settimanale</h3><p>${wk.rows.length} settimane · flusso ≥ obiettivo in ${nFlussoOk}/${wk.rows.length} · saldo ≥ obiettivo in ${nSaldoOk}/${nSaldoTot||0}</p></div><div>${granHTML()}</div></div>
+    <div class="panel-head"><div><h3>Andamento settimanale</h3><p>${wk.rows.length} settimane · entrate ≥ obiettivo in ${nFlussoOk}/${wk.rows.length} · saldo ≥ obiettivo in ${nSaldoOk}/${nSaldoTot||0}</p></div><div>${granHTML()}</div></div>
     <div class="grid cols-2" style="margin-top:4px">
-      <div><div class="wk-h">Flusso settimanale <span class="sm mut">min ${flussoMin!=null?eur(flussoMin):'—'}</span></div><div id="wkFlusso"></div></div>
-      <div><div class="wk-h">Saldo a fine settimana <span class="sm mut">min ${saldoMin!=null?eur(saldoMin):'—'}</span></div><div id="wkSaldo"></div></div>
+      <div><div class="wk-h">Entrate settimanali <span class="sm mut">min ${entrateMin!=null?eur(entrateMin):'—'}</span></div><div id="wkFlusso"></div></div>
+      <div><div class="wk-h">Saldo al venerdì <span class="sm mut">min ${saldoMin!=null?eur(saldoMin):'—'}</span></div><div id="wkSaldo"></div></div>
     </div>
-    <div class="tscroll" style="margin-top:16px"><table class="dtable matrix"><thead><tr><th>Settimana</th><th class="r">Entrate</th><th class="r">Uscite</th><th class="r">Flusso</th><th class="r">Δ vs obiettivo</th><th class="r">Saldo fine sett.</th><th class="r">Δ vs obiettivo</th></tr></thead><tbody>${trs}</tbody></table></div>
+    <div class="tscroll" style="margin-top:16px"><table class="dtable matrix"><thead><tr><th>Settimana</th><th class="r">Entrate</th><th class="r">Δ vs obiettivo</th><th class="r">Uscite</th><th class="r">Flusso</th><th class="r">Saldo al venerdì</th><th class="r">Δ vs obiettivo</th></tr></thead><tbody>${trs}</tbody></table></div>
     <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Δ verde = sopra l'obiettivo (favorevole), rosso = sotto. Nel grafico le linee tratteggiate sono gli obiettivi minimi.</div>
   </div>`;
 }
