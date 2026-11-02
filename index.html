@@ -176,11 +176,19 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
 .filelist .fr input{width:96px;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;text-align:right}
 .cover{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin-top:12px}
 @media(max-width:520px){.cover{grid-template-columns:repeat(4,1fr)}}
-.cover .mc{border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;background:var(--ink-50)}
-.cover .mc.on{background:var(--emerald-50);border-color:var(--emerald-200)}
+.cover .mc{border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;background:var(--card)}
+.cover .mc.full{background:var(--emerald-50);border-color:var(--emerald-200)}
+.cover .mc.half{background:linear-gradient(to top,var(--emerald-100) 0 50%,var(--card) 50% 100%);border-color:var(--emerald-200)}
 .cover .mc .mm{font-family:var(--mono);font-size:10px;color:var(--ink-400);font-weight:600}
 .cover .mc .mv{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink-800);margin-top:2px}
-.cover .mc.on .mv{color:var(--emerald-700)}
+.cover .mc.full .mv{color:var(--emerald-700)}
+.cover .mc.half .mv{color:var(--emerald-800)}
+.cover-leg{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:10.5px;color:var(--ink-400)}
+.cover-leg span{display:inline-flex;align-items:center;gap:5px}
+.cover-leg i{width:12px;height:12px;border-radius:3px;border:1px solid var(--emerald-200);display:inline-block}
+.cover-leg i.e{background:var(--card);border-color:var(--line)}
+.cover-leg i.h{background:linear-gradient(to top,var(--emerald-100) 0 50%,var(--card) 50% 100%)}
+.cover-leg i.f{background:var(--emerald-50)}
 .srcbadge{font-size:10px;font-family:var(--mono);font-weight:600;padding:2px 6px;border-radius:5px;background:var(--emerald-100);color:var(--emerald-700)}
 /* file caricati */
 .fsum{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0 18px}
@@ -916,10 +924,30 @@ function bindAccantonamenti(root){
 
 /* ================= AGGIORNAMENTO ================= */
 function coverHTML(kind){
-  const ov=STORE[state.co][kind];
+  const co=state.co, d=DATA[co], actual=d.actualMonths;
+  const states=[], vals=[];
+  if(kind==='flussi'){
+    const c=getCassa(co), wkM=monthsFromWeeks(co,YEAR), cf=d.cashFlow2026||{in:[],out:[]}, ovF=STORE[co].flussi;
+    for(let i=0;i<12;i++){
+      let st='empty';
+      if(wkM.hasAny[i]) st=wkM.complete[i]?'full':'partial';          // estratti settimanali: completo vs parziale (metà)
+      else if(hasOv(ovF,i)) st='full';                                 // valore mensile caricato a mano
+      else if((cf.in&&cf.in[i]!=null)||(cf.out&&cf.out[i]!=null)) st='full'; // consuntivo già presente
+      states.push(st);
+      vals.push((c.inn[i]!=null||c.out[i]!=null)?eur((c.inn[i]||0)-(c.out[i]||0)):'—');
+    }
+  }else{
+    const ov=STORE[co][kind], cons=getConsuntivo(co);
+    const arr=kind==='ricavi'?cons.ricavi:kind==='costiOper'?cons.costiOper:cons.costiBuste;
+    for(let i=0;i<12;i++){
+      states.push((hasOv(ov,i)||i<actual)?'full':'empty'); // dati presenti (caricati o consuntivo) = pieno · nulla = bianco
+      vals.push(arr[i]!=null?eur(arr[i]):'—');
+    }
+  }
   let h='<div class="cover">';
-  for(let i=0;i<12;i++){const on=hasOv(ov,i);let v='—';if(on)v=(kind==='flussi')?eur((ov[i].in||0)-(ov[i].out||0)):eur(ov[i]);h+=`<div class="mc ${on?'on':''}"><div class="mm">${MESI[i]}</div><div class="mv">${v}</div></div>`;}
-  return h+'</div>';
+  for(let i=0;i<12;i++){const cls=states[i]==='full'?'full':states[i]==='partial'?'half':'';h+=`<div class="mc ${cls}"><div class="mm">${MESI[i]}</div><div class="mv">${vals[i]}</div></div>`;}
+  h+='</div><div class="cover-leg"><span><i class="f"></i>caricato / completo</span><span><i class="h"></i>parziale</span><span><i class="e"></i>nessun dato</span></div>';
+  return h;
 }
 function viewAggiornamento(d,cons){
   const libOk=(typeof XLSX!=='undefined');
@@ -954,7 +982,7 @@ function upCard(kind,title,tag,color,icon,desc){
     ${monthSel}
     <div class="drop" id="drop-${kind}"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0L8 7m4-4l4 4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg><b>Trascina qui o clicca</b><small>${kind==='buste'?'uno o più PDF':'file Excel o CSV'}</small><input type="file" id="file-${kind}" accept="${accept}" ${multiple} style="display:none"></div>
     <div id="body-${kind}"></div>
-    ${coverHTML(kind==='emesse'?'ricavi':kind==='ricevute'?'costiOper':'buste')}
+    ${coverHTML(kind==='emesse'?'ricavi':kind==='ricevute'?'costiOper':kind==='buste'?'buste':'flussi')}
   </div>`;
 }
 function bindUploads(root){
