@@ -168,6 +168,8 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
 .msg{font-size:11.5px;margin-top:10px;padding:8px 10px;border-radius:8px}
 .msg.ok{background:var(--emerald-50);color:var(--emerald-700)}
 .msg.warn{background:#fff7ed;color:#c2410c}
+.msg.info{background:var(--ink-100);color:var(--ink-700)}
+.msg.err{background:#fef2f2;color:var(--rose)}
 .msg.err{background:#fff1f2;color:var(--rose)}
 .filelist{font-size:11.5px;color:var(--ink-500);margin-top:10px}
 .filelist .fr{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--ink-100)}
@@ -227,6 +229,42 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
 .empty .ic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;margin:0 auto 14px}
 .empty h3{font-family:var(--disp);font-weight:600;font-size:17px;color:var(--ink-900)}
 .empty p{font-size:13px;color:var(--ink-400);max-width:400px;margin:7px auto 16px}
+/* ---- modale scope caricamento ---- */
+.ov{position:fixed;inset:0;background:rgba(15,23,42,.46);backdrop-filter:blur(3px);z-index:120;display:flex;align-items:center;justify-content:center;padding:20px}
+.ov-card{background:var(--card);border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.34);width:100%;max-width:560px;max-height:90vh;overflow:auto;border:1px solid var(--line)}
+.ov-head{padding:20px 22px 12px}
+.ov-head h3{font-family:var(--disp);font-weight:600;font-size:19px;color:var(--ink-900)}
+.ov-head p{font-size:12.5px;color:var(--ink-400);margin-top:4px;word-break:break-word}
+.ov-body{padding:4px 22px 6px}
+.ov-sec{padding:14px 0;border-top:1px solid var(--line)}
+.ov-sec>label.hd{display:block;font-weight:600;font-size:12.5px;color:var(--ink-700);margin-bottom:9px}
+.ov-radios{display:flex;gap:10px;flex-wrap:wrap}
+.ov-opt{flex:1;min-width:150px;display:flex;align-items:center;gap:9px;border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink-700);transition:.12s}
+.ov-opt:hover{border-color:var(--emerald-300)}
+.ov-opt.on{border-color:var(--emerald-500);background:var(--emerald-50);color:var(--emerald-800)}
+.ov-opt .dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--ink-300);flex:none}
+.ov-opt.on .dot{border-color:var(--emerald-600);background:var(--emerald-600);box-shadow:inset 0 0 0 2px #fff}
+.ov-opt[data-co="nsa"].on{border-color:var(--amber);background:#fffbeb;color:#92400e}
+.ov-opt[data-co="nsa"].on .dot{border-color:var(--amber);background:var(--amber)}
+.ov-yr{display:flex;align-items:center;gap:10px}
+.ov-yr input{width:110px;font-family:var(--mono);font-size:14px;padding:9px 11px;border:1.5px solid var(--line);border-radius:10px}
+.ov-seg{display:inline-flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.ov-seg button{border:none;background:var(--card);padding:8px 16px;font-size:13px;font-weight:600;color:var(--ink-500);cursor:pointer}
+.ov-seg button.on{background:var(--emerald-600);color:#fff}
+.ov-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:7px}
+.ov-chip{display:flex;align-items:center;gap:7px;border:1.5px solid var(--line);border-radius:9px;padding:8px 9px;cursor:pointer;font-size:12px;font-weight:500;color:var(--ink-600);user-select:none;transition:.1s}
+.ov-chip:hover{border-color:var(--emerald-300)}
+.ov-chip.on{border-color:var(--emerald-500);background:var(--emerald-50);color:var(--emerald-800);font-weight:600}
+.ov-chip .bx{width:13px;height:13px;border-radius:4px;border:2px solid var(--ink-300);flex:none;display:grid;place-items:center}
+.ov-chip.on .bx{border-color:var(--emerald-600);background:var(--emerald-600)}
+.ov-chip.wk{flex-direction:column;align-items:flex-start;gap:2px}
+.ov-chip.wk .wd{font-family:var(--mono);font-size:10px;color:var(--ink-400);font-weight:500}
+.ov-wkgroup{margin-bottom:12px}
+.ov-wkgroup>.gl{font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-400);margin:8px 0 6px}
+.ov-selall{font-size:11.5px;color:var(--emerald-700);cursor:pointer;font-weight:600;margin-bottom:8px;display:inline-block}
+.ov-foot{padding:14px 22px 20px;display:flex;gap:10px;justify-content:flex-end;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--card)}
+.ov-hint{font-size:11.5px;color:var(--ink-400);margin-top:4px}
+@media(max-width:560px){.ov-opt{min-width:120px}}
 </style>
 </head>
 <body>
@@ -908,7 +946,7 @@ function viewAggiornamento(d,cons){
 function upCard(kind,title,tag,color,icon,desc){
   const accept = kind==='buste' ? '.pdf' : '.xlsx,.xls,.csv';
   const multiple = kind==='buste' ? 'multiple' : '';
-  const monthSel = kind==='buste' ? `<div class="map-row" style="grid-template-columns:1fr"><div><label>Mese di competenza</label><select class="sel" id="mon-${kind}">${MESI_FULL.map((m,i)=>`<option value="${i}">${m} 2026</option>`).join('')}</select></div></div>`:'';
+  const monthSel = '';
   return `<div class="up-card">
     <div class="ic" style="background:${color}"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${icon}"/></svg></div>
     <h4>${title} <span class="srcbadge" style="background:${color}1a;color:${color}">${tag}</span></h4>
@@ -936,13 +974,100 @@ function resetCo(){if(!confirm('Azzerare tutti i dati caricati per '+DATA[state.
 /* ---- file handling ---- */
 function handleFiles(kind,files){
   files=[...files]; if(!files.length)return;
-  if(kind==='buste')return handleBuste(files);
-  const f=files[0];
-  const rd=new FileReader();
-  rd.onload=()=>{ try{ if(kind==='flussi')parseFlussi(f.name,new Uint8Array(rd.result)); else parseFatture(kind,f.name,new Uint8Array(rd.result)); }catch(e){ msgBox(kind,'err','Errore nella lettura del file: '+e.message);} };
+  openScopeModal(kind,files); // chiedi azienda + periodo prima di importare
+}
+/* ---- modale: scegli azienda e periodo per ogni file caricato ---- */
+let SCOPE_MODAL=null;
+function weeksOfYearByMonth(year){
+  const map={}; for(let m=0;m<12;m++)map[m]=[];
+  const seen=new Set();
+  for(let m=0;m<12;m++){const dim=daysInMonth(year,m);
+    for(let d=1;d<=dim;d++){const k=isoWeekKey(new Date(year,m,d)); if(seen.has(k))continue; seen.add(k);
+      const [y,w]=k.split('-W').map(Number); const mon=isoWeekStart(y,w); const th=new Date(mon); th.setUTCDate(mon.getUTCDate()+3);
+      const lab=weekLabel(k); const tm=th.getUTCMonth(); if(map[tm])map[tm].push({key:k,num:lab.num,range:lab.range});
+    }
+  }
+  return map;
+}
+function openScopeModal(kind,files){
+  const isBuste=kind==='buste';
+  SCOPE_MODAL={kind,files,sc:{co:state.co,year:YEAR,mode:(isBuste?'manual':'auto'),gran:'mese',months:(isBuste?[new Date().getMonth()]:[]),weeks:[]}};
+  renderScopeModal();
+}
+function renderScopeModal(){
+  const M=SCOPE_MODAL; if(!M)return; const sc=M.sc, kind=M.kind, isBuste=kind==='buste';
+  const fileNames=[...M.files].map(f=>f.name).join(', ');
+  const kindLabel={emesse:'Fatture emesse → Ricavi',ricevute:'Fatture ricevute → Costi operativi',buste:'Buste paga → Costi buste',flussi:'Estratto conto → Cassa'}[kind]||'File';
+  let host=document.getElementById('scopeModal');
+  if(!host){host=document.createElement('div');host.id='scopeModal';document.body.appendChild(host);}
+  let periodHTML='';
+  if(sc.mode==='manual'){
+    const segW = isBuste?'' :`<div class="ov-seg"><button data-gran="mese" class="${sc.gran==='mese'?'on':''}">Mesi</button><button data-gran="settimana" class="${sc.gran==='settimana'?'on':''}">Settimane</button></div>`;
+    let picker='';
+    if(sc.gran==='mese'){
+      picker=`<div class="ov-selall" data-selall="1">Seleziona / deseleziona tutti</div><div class="ov-chips">`+
+        MESI_FULL.map((m,i)=>`<div class="ov-chip ${sc.months.includes(i)?'on':''}" data-m="${i}"><span class="bx">${sc.months.includes(i)?'✓':''}</span>${m}</div>`).join('')+`</div>`;
+    }else{
+      const map=weeksOfYearByMonth(sc.year);
+      picker=`<div class="ov-selall" data-selall="1">Seleziona / deseleziona tutte</div>`;
+      for(let m=0;m<12;m++){ if(!map[m].length)continue;
+        picker+=`<div class="ov-wkgroup"><div class="gl">${MESI_FULL[m]}</div><div class="ov-chips">`+
+          map[m].map(w=>`<div class="ov-chip wk ${sc.weeks.includes(w.key)?'on':''}" data-w="${w.key}"><div style="display:flex;align-items:center;gap:6px"><span class="bx">${sc.weeks.includes(w.key)?'✓':''}</span>S${w.num}</div><span class="wd">${w.range}</span></div>`).join('')+`</div></div>`;
+      }
+    }
+    periodHTML=`<div class="ov-sec"><label class="hd">${isBuste?'Mese di competenza':'Periodi coperti dal file'}</label>${segW}${picker}<div class="ov-hint">Puoi selezionarne più di uno se il file copre un periodo lungo.</div></div>`;
+  }
+  const modeSec = isBuste?'' : `<div class="ov-sec"><label class="hd">Come assegnare il periodo?</label><div class="ov-radios"><label class="ov-opt ${sc.mode==='auto'?'on':''}" data-mode="auto"><span class="dot"></span>Rileva dalle date del file</label><label class="ov-opt ${sc.mode==='manual'?'on':''}" data-mode="manual"><span class="dot"></span>Scelgo io i periodi</label></div></div>`;
+  host.innerHTML=`<div class="ov"><div class="ov-card">
+    <div class="ov-head"><h3>Caricamento file</h3><p>${kindLabel} · ${fileNames}</p></div>
+    <div class="ov-body">
+      <div class="ov-sec" style="border-top:none"><label class="hd">Per quale azienda?</label><div class="ov-radios">
+        <label class="ov-opt ${sc.co==='sanitech'?'on':''}" data-co="sanitech"><span class="dot"></span>${DATA.sanitech.short}</label>
+        <label class="ov-opt ${sc.co==='nsa'?'on':''}" data-co="nsa"><span class="dot"></span>${DATA.nsa.short}</label>
+      </div></div>
+      <div class="ov-sec"><label class="hd">Anno</label><div class="ov-yr"><input type="number" id="ovYear" value="${sc.year}" min="2019" max="2030" step="1"></div></div>
+      ${modeSec}
+      ${periodHTML}
+    </div>
+    <div class="ov-foot"><button class="btn btn-ghost" data-act="cancel">Annulla</button><button class="btn btn-primary" data-act="ok">Continua →</button></div>
+  </div></div>`;
+  host.querySelectorAll('.ov-opt[data-co]').forEach(el=>el.onclick=()=>{sc.co=el.dataset.co;renderScopeModal();});
+  host.querySelectorAll('.ov-opt[data-mode]').forEach(el=>el.onclick=()=>{sc.mode=el.dataset.mode;renderScopeModal();});
+  const yr=host.querySelector('#ovYear'); if(yr)yr.onchange=()=>{sc.year=+yr.value||YEAR; sc.weeks=[]; renderScopeModal();};
+  host.querySelectorAll('.ov-seg button[data-gran]').forEach(el=>el.onclick=()=>{sc.gran=el.dataset.gran;renderScopeModal();});
+  host.querySelectorAll('.ov-chip[data-m]').forEach(el=>el.onclick=()=>{const i=+el.dataset.m;const k=sc.months.indexOf(i);if(k>=0)sc.months.splice(k,1);else sc.months.push(i);renderScopeModal();});
+  host.querySelectorAll('.ov-chip[data-w]').forEach(el=>el.onclick=()=>{const w=el.dataset.w;const k=sc.weeks.indexOf(w);if(k>=0)sc.weeks.splice(k,1);else sc.weeks.push(w);renderScopeModal();});
+  const sa=host.querySelector('[data-selall]'); if(sa)sa.onclick=()=>{ if(sc.gran==='mese'){sc.months=sc.months.length===12?[]:[...Array(12).keys()];} else {const all=[];const map=weeksOfYearByMonth(sc.year);for(let m=0;m<12;m++)map[m].forEach(w=>all.push(w.key));sc.weeks=sc.weeks.length===all.length?[]:all;} renderScopeModal(); };
+  host.querySelector('[data-act="cancel"]').onclick=()=>closeScopeModal();
+  host.querySelector('[data-act="ok"]').onclick=()=>confirmScopeModal();
+}
+function closeScopeModal(){const h=document.getElementById('scopeModal');if(h)h.innerHTML='';SCOPE_MODAL=null;}
+function confirmScopeModal(){
+  const M=SCOPE_MODAL; if(!M)return; const sc=M.sc;
+  if(sc.mode==='manual'&&sc.gran==='mese'&&!sc.months.length){alert('Seleziona almeno un mese.');return;}
+  if(sc.mode==='manual'&&sc.gran==='settimana'&&!sc.weeks.length){alert('Seleziona almeno una settimana.');return;}
+  const kind=M.kind, files=M.files; closeScopeModal(); proceedWithFiles(kind,files,sc);
+}
+function proceedWithFiles(kind,files,scope){
+  if(kind==='buste')return handleBuste(files,scope);
+  const f=files[0], rd=new FileReader();
+  rd.onload=()=>{ try{ if(kind==='flussi')parseFlussi(f.name,new Uint8Array(rd.result),scope); else parseFatture(kind,f.name,new Uint8Array(rd.result),scope); }catch(e){ msgBox(kind,'err','Errore nella lettura del file: '+e.message);} };
   rd.readAsArrayBuffer(f);
 }
-function parseFatture(kind,fname,bytes){
+function rowInScope(dt,sc){
+  if(!sc||sc.mode!=='manual')return true;
+  if(sc.year&&dt.getFullYear()!==sc.year)return false;
+  if(sc.gran==='settimana')return sc.weeks.includes(isoWeekKey(dt));
+  return sc.months.includes(dt.getMonth());
+}
+function scopeNote(sc){
+  if(!sc)return '';
+  const co=DATA[sc.co].short;
+  if(sc.mode!=='manual')return `Azienda: <b>${co}</b> · periodi rilevati dalle date del file`;
+  const per = sc.gran==='settimana' ? sc.weeks.length+' settiman'+(sc.weeks.length===1?'a':'e') : sc.months.map(m=>MESI_AB[m]).join(', ');
+  return `Azienda: <b>${co}</b> · ${sc.year} · ${per}`;
+}
+function parseFatture(kind,fname,bytes,scope){
   const aoa=fileToAOA(bytes);
   // find header row = row (first 12) with most textual cells
   let hi=0,best=-1;
@@ -951,7 +1076,7 @@ function parseFatture(kind,fname,bytes){
   const rows=aoa.slice(hi+1).filter(r=>r&&r.some(c=>c!=null&&c!==''));
   const dateGuess=guessCol(headers,['data','emiss','competenz','doc']);
   const amtGuess=guessCol(headers,['imponibile','totale','importo','netto','lordo']);
-  PARSE[kind]={fname,headers,rows,dateIdx:dateGuess>=0?dateGuess:0,amtIdx:amtGuess>=0?amtGuess:Math.min(1,headers.length-1)};
+  PARSE[kind]={fname,headers,rows,dateIdx:dateGuess>=0?dateGuess:0,amtIdx:amtGuess>=0?amtGuess:Math.min(1,headers.length-1),scope:scope||null};
   renderFatturePreview(kind);
 }
 function guessCol(headers,keys){for(let i=0;i<headers.length;i++){const h=headers[i].toLowerCase();for(const k of keys)if(h.includes(k))return i;}return -1;}
@@ -1029,8 +1154,11 @@ function parseAmount(v){
   const n=parseFloat(s); if(isNaN(n))return null; return neg?-n:n;
 }
 function aggregateFatture(p){
-  const months=Array(12).fill(0),counts=Array(12).fill(0);let skipped=0,other=0;
-  p.rows.forEach(r=>{const dt=parseDate(r[p.dateIdx]);const a=parseAmount(r[p.amtIdx]);if(dt==null||a==null){skipped++;return;}if(dt.getFullYear()!==YEAR){other++;return;}months[dt.getMonth()]+=a;counts[dt.getMonth()]++;});
+  const sc=p.scope, months=Array(12).fill(0),counts=Array(12).fill(0);let skipped=0,other=0;
+  p.rows.forEach(r=>{const dt=parseDate(r[p.dateIdx]);const a=parseAmount(r[p.amtIdx]);if(dt==null||a==null){skipped++;return;}
+    if(sc&&sc.mode==='manual'){ if(!rowInScope(dt,sc)){other++;return;} }
+    else { if(dt.getFullYear()!==YEAR){other++;return;} }
+    months[dt.getMonth()]+=a;counts[dt.getMonth()]++;});
   return {months,counts,skipped,other};
 }
 function renderFatturePreview(kind){
@@ -1045,7 +1173,8 @@ function renderFatturePreview(kind){
       <div><label>Colonna data</label><select class="sel" data-role="date">${opts(p.dateIdx)}</select></div>
       <div><label>Colonna importo</label><select class="sel" data-role="amt">${opts(p.amtIdx)}</select></div>
     </div>
-    <div class="msg ${agg.other>0?'warn':'ok'}">${p.fname} · ${p.rows.length} righe · ${totFound?eur(totFound):'0 €'} nel 2026${agg.other?` · ${agg.other} righe di altri anni ignorate`:''}${agg.skipped?` · ${agg.skipped} righe non lette`:''}</div>
+    <div class="msg info">${scopeNote(p.scope)}</div>
+    <div class="msg ${agg.other>0?'warn':'ok'}">${p.fname} · ${p.rows.length} righe · ${totFound?eur(totFound):'0 €'}${agg.other?` · ${agg.other} righe fuori dai periodi scelti ignorate`:''}${agg.skipped?` · ${agg.skipped} righe non lette`:''}</div>
     <div class="prev"><table class="prev-table"><thead><tr><th>Mese</th><th class="r">Fatt.</th><th class="r">Importo €</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="actions"><button class="btn btn-primary" data-role="apply">Applica al consuntivo</button><button class="btn btn-ghost" data-role="cancel">Annulla</button></div>`;
   body.querySelectorAll('select[data-role]').forEach(sel=>sel.addEventListener('change',()=>{const r=sel.dataset.role;if(r==='date')p.dateIdx=+sel.value;else p.amtIdx=+sel.value;renderFatturePreview(kind);}));
@@ -1054,9 +1183,10 @@ function renderFatturePreview(kind){
     const target=kind==='emesse'?'ricavi':'costiOper';
     const months={}; let n=0;
     body.querySelectorAll('input[data-mi]').forEach(inp=>{const mi=+inp.dataset.mi;const val=inp.value.trim();if(val!==''){months[mi]=Math.round(parseFloat(val)*100)/100;n++;}});
-    addUpload(state.co,kind,target,p.fname,months);
-    PARSE[kind]=null;render();
-    setTimeout(()=>{const b=document.getElementById('body-'+kind);if(b)b.innerHTML=`<div class="msg ok">Applicati ${n} mesi ai ${kind==='emesse'?'ricavi':'costi operativi'}. Il file è ora in <b>File caricati</b>.</div>`;},30);
+    const co=(p.scope&&p.scope.co)||state.co;
+    addUpload(co,kind,target,p.fname,months);
+    state.co=co;PARSE[kind]=null;render();
+    setTimeout(()=>{const b=document.getElementById('body-'+kind);if(b)b.innerHTML=`<div class="msg ok">Applicati ${n} mesi ai ${kind==='emesse'?'ricavi':'costi operativi'} di <b>${DATA[co].short}</b>. Il file è ora in <b>File caricati</b>.</div>`;},30);
   });
 }
 
@@ -1101,7 +1231,7 @@ function detectAmountCols(headers,rows,dateIdx){
   if(cand.length===1)return {mode:'signed',signedIdx:cand[0].c,saldoIdx};
   return {mode:'signed',signedIdx:-1,saldoIdx};
 }
-function parseFlussi(fname,bytes){
+function parseFlussi(fname,bytes,scope){
   const aoa=fileToAOA(bytes);
   // header row = the one that maximises (textual cells) AND is followed by rows containing dates
   let hi=0,best=-1;
@@ -1115,14 +1245,16 @@ function parseFlussi(fname,bytes){
   const rows=aoa.slice(hi+1).filter(r=>r&&r.some(c=>c!=null&&c!==''));
   const dateIdx=detectDateColumn(headers,rows);
   const amt=detectAmountCols(headers,rows,dateIdx>=0?dateIdx:0);
-  PARSE.flussi=Object.assign({fname,headers,rows,dateIdx:dateIdx>=0?dateIdx:0},amt);
+  PARSE.flussi=Object.assign({fname,headers,rows,dateIdx:dateIdx>=0?dateIdx:0,scope:scope||null},amt);
   renderFlussiPreview();
 }
 function aggregateFlussi(p){
   const inn=Array(12).fill(0),out=Array(12).fill(0),cnt=Array(12).fill(0),years={},weeks={};
   let skipped=0,noDate=0;
   p.rows.forEach(r=>{
-    const dt=parseDate(r[p.dateIdx]); const mi=dt?dt.getMonth():bucketMonth(r[p.dateIdx]);
+    const dt=parseDate(r[p.dateIdx]);
+    if(p.scope&&p.scope.mode==='manual'){ if(!dt||!rowInScope(dt,p.scope)){skipped++;return;} }
+    const mi=dt?dt.getMonth():bucketMonth(r[p.dateIdx]);
     if(mi==null){noDate++;return;}
     const yr=dt?dt.getFullYear():bucketYear(r[p.dateIdx]); if(yr)years[yr]=(years[yr]||0)+1;
     let amt=null;
@@ -1158,7 +1290,8 @@ function renderFlussiPreview(){
   body.innerHTML=`
     <div class="map-row"><div><label>Colonna data movimento</label><select class="sel" data-role="date">${opt(p.dateIdx)}</select></div><div><label>Tipo importi</label><select class="sel" data-role="mode"><option value="signed" ${p.mode==='signed'?'selected':''}>Importo unico con segno</option><option value="two" ${p.mode==='two'?'selected':''}>Entrate + Uscite separate</option></select></div></div>
     ${amtControls}
-    <div class="msg ${multiYr||agg.noDate>p.rows.length*0.5?'warn':'ok'}">${p.fname} · ${mov} movimenti letti${yrTxt} · entrate ${eur(ti)} · uscite ${eur(to)}${agg.noDate?` · ${agg.noDate} righe senza data ignorate`:''}${agg.skipped?` · ${agg.skipped} senza importo`:''}${multiYr?' · attenzione: date di anni diversi':''}</div>
+    <div class="msg info">${scopeNote(p.scope)}</div>
+    <div class="msg ${multiYr||agg.noDate>p.rows.length*0.5?'warn':'ok'}">${p.fname} · ${mov} movimenti letti${yrTxt} · entrate ${eur(ti)} · uscite ${eur(to)}${agg.noDate?` · ${agg.noDate} righe senza data ignorate`:''}${agg.skipped?` · ${agg.skipped} fuori periodo o senza importo`:''}${multiYr?' · attenzione: date di anni diversi':''}</div>
     <div class="prev"><table class="prev-table"><thead><tr><th>Mese</th><th class="r">Mov.</th><th class="r">Entrate</th><th class="r">Uscite</th><th class="r">Saldo</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="actions"><button class="btn btn-primary" data-role="apply">Applica alla cassa</button><button class="btn btn-ghost" data-role="cancel">Annulla</button></div>`;
   body.querySelectorAll('select[data-role]').forEach(sel=>sel.addEventListener('change',()=>{const r=sel.dataset.role;if(r==='date')p.dateIdx=+sel.value;else if(r==='mode')p.mode=sel.value;else if(r==='signed')p.signedIdx=+sel.value;else if(r==='in')p.inIdx=+sel.value;else if(r==='out')p.outIdx=+sel.value;renderFlussiPreview();}));
@@ -1167,23 +1300,24 @@ function renderFlussiPreview(){
   body.querySelector('[data-role="apply"]').addEventListener('click',()=>{
     const months={}; let n=0;
     for(let i=0;i<12;i++){const iIn=body.querySelector(`input[data-fi="in"][data-mi="${i}"]`).value.trim();const iOut=body.querySelector(`input[data-fi="out"][data-mi="${i}"]`).value.trim();if(iIn===''&&iOut==='')continue;months[i]={in:Math.round((parseFloat(iIn)||0)*100)/100,out:Math.round((parseFloat(iOut)||0)*100)/100};n++;}
-    addUpload(state.co,'flussi','flussi',p.fname,months,agg.weeks);
-    PARSE.flussi=null;render();
-    setTimeout(()=>{const b=document.getElementById('body-flussi');if(b)b.innerHTML=`<div class="msg ok">Applicati ${n} mesi alla cassa (e ${Object.keys(agg.weeks).length} settimane). Il file è ora in <b>File caricati</b>.</div>`;},30);
+    const co=(p.scope&&p.scope.co)||state.co;
+    addUpload(co,'flussi','flussi',p.fname,months,agg.weeks);
+    state.co=co;PARSE.flussi=null;render();
+    setTimeout(()=>{const b=document.getElementById('body-flussi');if(b)b.innerHTML=`<div class="msg ok">Applicati ${n} mesi alla cassa di <b>${DATA[co].short}</b> (e ${Object.keys(agg.weeks).length} settimane). Il file è ora in <b>File caricati</b>.</div>`;},30);
   });
 }
 
 /* ---- buste PDF ---- */
-async function handleBuste(files){
+async function handleBuste(files,scope){
   const kind='buste'; msgBox(kind,'ok','Lettura di '+files.length+' PDF in corso…');
-  if(typeof pdfjsLib==='undefined'){msgBox(kind,'err','Libreria PDF non caricata. Serve internet al primo avvio. Puoi inserire i netti a mano qui sotto.');PARSE.buste={files:files.map(f=>({name:f.name,val:0}))};renderBustePreview();return;}
+  if(typeof pdfjsLib==='undefined'){msgBox(kind,'err','Libreria PDF non caricata. Serve internet al primo avvio. Puoi inserire i netti a mano qui sotto.');PARSE.buste={files:files.map(f=>({name:f.name,val:0})),scope:scope||null};renderBustePreview();return;}
   try{ if(pdfjsLib.GlobalWorkerOptions) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }catch(e){}
   const res=[];
   for(const f of files){
     try{ const buf=await f.arrayBuffer(); const val=await extractNetto(new Uint8Array(buf)); res.push({name:f.name,val}); }
     catch(e){ res.push({name:f.name,val:0,err:true}); }
   }
-  PARSE.buste={files:res};
+  PARSE.buste={files:res,scope:scope||null};
   renderBustePreview();
 }
 async function extractNetto(bytes){
@@ -1217,19 +1351,25 @@ function renderBustePreview(){
   const body=document.getElementById('body-buste'); const p=PARSE.buste; if(!p||!body)return;
   const tot=p.files.reduce((s,f)=>s+(parseFloat(f.val)||0),0);
   const rows=p.files.map((f,i)=>`<div class="fr"><span title="${f.name}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px">${f.err?'⚠ ':''}${f.name}</span><input type="number" step="0.01" data-bi="${i}" value="${(parseFloat(f.val)||0).toFixed(2)}"></div>`).join('');
+  const sc=p.scope||{co:state.co,months:[new Date().getMonth()]};
+  const ms=(sc.months&&sc.months.length)?sc.months.slice().sort((a,b)=>a-b):[new Date().getMonth()];
+  const msLabel=ms.map(m=>MESI_FULL[m]).join(', ');
   body.innerHTML=`
+    <div class="msg info">${scopeNote(sc)}</div>
     <div class="filelist">${rows}<div class="fr" style="border:none;font-weight:600;color:var(--ink-800)"><span>Totale netto</span><span id="buste-tot" style="font-family:var(--mono)">${eur(tot)}</span></div></div>
-    <div class="msg ${p.files.some(f=>f.err)?'warn':'ok'}">Verifica il netto estratto da ogni cedolino e correggi se serve, poi applica al mese scelto.</div>
-    <div class="actions"><button class="btn btn-primary" data-role="apply-buste">Applica al mese</button><button class="btn btn-ghost" data-role="cancel-buste">Annulla</button></div>`;
+    <div class="msg ${p.files.some(f=>f.err)?'warn':'ok'}">Verifica il netto estratto da ogni cedolino e correggi se serve, poi applica.${ms.length>1?` Il totale sarà diviso in parti uguali fra ${ms.length} mesi (${msLabel}).`:''}</div>
+    <div class="actions"><button class="btn btn-primary" data-role="apply-buste">Applica a ${msLabel}</button><button class="btn btn-ghost" data-role="cancel-buste">Annulla</button></div>`;
   body.querySelectorAll('input[data-bi]').forEach(inp=>inp.addEventListener('input',()=>{p.files[+inp.dataset.bi].val=inp.value;const t=p.files.reduce((s,f)=>s+(parseFloat(f.val)||0),0);document.getElementById('buste-tot').textContent=eur(t);}));
   body.querySelector('[data-role="cancel-buste"]').addEventListener('click',()=>{PARSE.buste=null;render();});
   body.querySelector('[data-role="apply-buste"]').addEventListener('click',()=>{
-    const mi=+document.getElementById('mon-buste').value;
+    const co=sc.co||state.co;
     const t=p.files.reduce((s,f)=>s+(parseFloat(f.val)||0),0);
-    const label=p.files.length===1?p.files[0].name:`${p.files.length} cedolini · ${MESI_FULL[mi]}`;
-    addUpload(state.co,'buste','buste',label,{[mi]:Math.round(t*100)/100});
-    PARSE.buste=null; render();
-    setTimeout(()=>{const b=document.getElementById('body-buste');if(b)b.innerHTML=`<div class="msg ok">Applicato ${eur(t)} alle buste di ${MESI_FULL[mi]}. Il file è ora in <b>File caricati</b>.</div>`;},30);
+    const per=Math.round((t/ms.length)*100)/100;
+    const monthsObj={}; ms.forEach(m=>monthsObj[m]=per);
+    const label=p.files.length===1?p.files[0].name:`${p.files.length} cedolini · ${msLabel}`;
+    addUpload(co,'buste','buste',label,monthsObj);
+    state.co=co; PARSE.buste=null; render();
+    setTimeout(()=>{const b=document.getElementById('body-buste');if(b)b.innerHTML=`<div class="msg ok">Applicato ${eur(t)} alle buste di <b>${DATA[co].short}</b> (${msLabel}). Il file è ora in <b>File caricati</b>.</div>`;},30);
   });
 }
 function msgBox(kind,cls,txt){const b=document.getElementById('body-'+kind);if(b)b.innerHTML=`<div class="msg ${cls}">${txt}</div>`;}
