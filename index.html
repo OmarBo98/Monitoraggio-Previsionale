@@ -68,6 +68,10 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
 .up{color:var(--emerald-600)}.down{color:var(--rose)}.mut{color:var(--ink-400)}
 .pill{font-family:var(--mono);font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;background:var(--emerald-50);color:var(--emerald-700)}
 .pill.neg{background:#fff1f2;color:var(--rose)}.pill.mut{background:var(--ink-100);color:var(--ink-500)}
+.st-badge{font-family:var(--mono);font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:20px;white-space:nowrap}
+.st-badge.ok{background:var(--emerald-50);color:var(--emerald-700)}
+.st-badge.warn{background:#fff7ed;color:var(--amber)}
+.st-badge.mut{background:var(--ink-100);color:var(--ink-500)}
 .grid{display:grid;gap:18px;margin-top:20px}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 20px 16px;box-shadow:var(--shadow)}
 .panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:6px}
@@ -365,6 +369,35 @@ function getCassaWeekly(co){
   return {rows, obj, open, hasData:keys.length>0};
 }
 
+/* ---------- consuntivo mensile dei flussi dalle settimane caricate ---------- */
+function daysInMonth(y,m){return new Date(Date.UTC(y,m+1,0)).getUTCDate();}
+function monthsFromWeeks(co,year){
+  year=year||2026;
+  const wk=STORE[co].weeks||{};
+  const inn=Array(12).fill(null),out=Array(12).fill(null),hasAny=Array(12).fill(false);
+  for(const k in wk){
+    const w=wk[k];
+    if(w.byMonth){ // ripartizione precisa per mese (giorno per giorno)
+      for(const bmk in w.byMonth){const [by,bm]=bmk.split('-').map(Number); if(by!==year)continue;
+        inn[bm]=(inn[bm]||0)+(w.byMonth[bmk].in||0); out[bm]=(out[bm]||0)+(w.byMonth[bmk].out||0); hasAny[bm]=true;}
+    }else{ // settimane legacy senza ripartizione: tutta la settimana al mese del lunedì
+      const [y,wn]=k.split('-W').map(Number); const mon=isoWeekStart(y,wn);
+      if(mon.getUTCFullYear()!==year)continue; const mi=mon.getUTCMonth();
+      inn[mi]=(inn[mi]||0)+(w.in||0); out[mi]=(out[mi]||0)+(w.out||0); hasAny[mi]=true;
+    }
+  }
+  // mese "completo" = tutte le settimane ISO che toccano quel mese di calendario sono state caricate
+  const keys=new Set(Object.keys(wk)), complete=Array(12).fill(false);
+  for(let mi=0;mi<12;mi++){
+    if(!hasAny[mi])continue;
+    const need=new Set(), dim=daysInMonth(year,mi);
+    for(let d=1;d<=dim;d++)need.add(isoWeekKey(new Date(year,mi,d)));
+    complete[mi]=[...need].every(k=>keys.has(k));
+  }
+  // arrotonda
+  for(let i=0;i<12;i++){if(inn[i]!=null)inn[i]=Math.round(inn[i]*100)/100; if(out[i]!=null)out[i]=Math.round(out[i]*100)/100;}
+  return {inn,out,hasAny,complete};
+}
 /* ---------- merged consuntivo (base Excel + uploaded overrides) ---------- */
 function getConsuntivo(co){
   const d=DATA[co], ov=STORE[co];
@@ -382,16 +415,22 @@ function getConsuntivo(co){
 }
 function getCassa(co){
   const d=DATA[co], ov=STORE[co].flussi, cf=d.cashFlow2026||{in:[],out:[]};
-  const inn=[],out=[],bil=[];
+  const wkM=monthsFromWeeks(co,2026); // somma degli estratti settimanali caricati, per mese
+  const inn=[],out=[],bil=[],src=[];
   for(let i=0;i<12;i++){
-    let vi=null,vo=null;
-    if(hasOv(ov,i)){vi=ov[i].in;vo=ov[i].out;}
-    else{vi=cf.in[i]!=null?cf.in[i]:null;vo=cf.out[i]!=null?cf.out[i]:null;}
-    inn.push(vi);out.push(vo);
+    let vi=null,vo=null,s='base';
+    if(wkM.hasAny[i]){ // priorità agli estratti settimanali: il mese si costruisce sommando le settimane caricate
+      vi=wkM.inn[i];vo=wkM.out[i];s=wkM.complete[i]?'completo':'parziale';
+    }else if(hasOv(ov,i)){ // altrimenti un valore mensile inserito a mano / da estratto mensile
+      vi=ov[i].in;vo=ov[i].out;s='manuale';
+    }else{ // altrimenti il dato base del previsionale/consuntivo
+      vi=cf.in[i]!=null?cf.in[i]:null;vo=cf.out[i]!=null?cf.out[i]:null;
+    }
+    inn.push(vi);out.push(vo);src.push(s);
     bil.push((vi==null&&vo==null)?null:(vi||0)-(vo||0));
   }
   const years={}; Object.keys(d.cash).forEach(y=>years[y]=(y==='2026')?bil:d.cash[y]);
-  return {inn,out,bil,years};
+  return {inn,out,bil,years,src};
 }
 function uploadedCount(co){const ov=STORE[co];const s=new Set();['ricavi','costiOper','buste','flussi'].forEach(k=>Object.keys(ov[k]).forEach(m=>s.add(k+m)));return s.size;}
 
@@ -400,7 +439,13 @@ let PARSE={emesse:null,ricevute:null,buste:null,flussi:null};
 let EDITING=null;
 let IMPORT_PENDING=null;
 const FMETA={emesse:{lab:'Fatture emesse',tag:'Ricavi',color:'#059669'},ricevute:{lab:'Fatture ricevute',tag:'Costi operativi',color:'#334155'},buste:{lab:'Buste paga',tag:'Costi buste',color:'#d97706'},flussi:{lab:'Flussi di cassa',tag:'Cassa',color:'#0e7490'}};
-function fileTotal(u){const ms=Object.keys(u.months);return u.target==='flussi'?ms.reduce((s,m)=>s+((u.months[m].in||0)-(u.months[m].out||0)),0):ms.reduce((s,m)=>s+u.months[m],0);}
+function fileTotal(u){const ms=Object.keys(u.months||{});
+  if(u.target==='flussi'){
+    if(ms.length)return ms.reduce((s,m)=>s+((u.months[m].in||0)-(u.months[m].out||0)),0);
+    if(u.weeks)return Object.values(u.weeks).reduce((s,w)=>s+((w.in||0)-(w.out||0)),0);
+    return 0;
+  }
+  return ms.reduce((s,m)=>s+u.months[m],0);}
 function setMode(sec,m){state.mode[sec]=m;render();}
 function segHTML(sec){const m=state.mode[sec];
   const ic=t=>t==='chart'?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 19V5M4 15l5-5 4 3 6-7"/></svg>':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>';
@@ -537,15 +582,22 @@ function prevRealTable(prev,real,favorHigh,unit){
 }
 function tableCassa(co,cass){
   const ref=DATA[co].cash['2025']||[];
+  const src=cass.src||[];
+  const badge=s=>{
+    if(s==='completo')return '<span class="st-badge ok" title="Tutte le settimane del mese sono state caricate">● completo</span>';
+    if(s==='parziale')return '<span class="st-badge warn" title="Mancano ancora delle settimane: il dato si completerà con i prossimi estratti">◐ parziale</span>';
+    if(s==='manuale')return '<span class="st-badge mut" title="Valore inserito a mano o da estratto mensile">manuale</span>';
+    return '<span class="sm mut">—</span>';
+  };
   let rows='',ti=0,to=0,tb=0,any=false;
   for(let i=0;i<12;i++){
     const vi=cass.inn[i],vo=cass.out[i],bl=cass.bil[i],has=bl!=null;
     if(has){ti+=(vi||0);to+=(vo||0);tb+=bl;any=true;}
     const r5=ref[i];
-    rows+=`<tr class="${has?'has':''}"><td>${MESI_FULL[i]}</td><td class="r">${vi!=null?eur(vi):'—'}</td><td class="r">${vo!=null?eur(vo):'—'}</td><td class="r"><span class="${has?(bl>=0?'up':'down'):''}" style="font-weight:600">${has?eur(bl):'—'}</span></td><td class="r sm">${r5!=null?eur(r5):'—'}</td></tr>`;
+    rows+=`<tr class="${has?'has':''}"><td>${MESI_FULL[i]}</td><td class="r">${vi!=null?eur(vi):'—'}</td><td class="r">${vo!=null?eur(vo):'—'}</td><td class="r"><span class="${has?(bl>=0?'up':'down'):''}" style="font-weight:600">${has?eur(bl):'—'}</span></td><td class="r sm">${r5!=null?eur(r5):'—'}</td><td class="r">${has?badge(src[i]):'<span class="sm mut">—</span>'}</td></tr>`;
   }
-  const tot=any?`<tr class="tot"><td>Totale mesi reali</td><td class="r">${eur(ti)}</td><td class="r">${eur(to)}</td><td class="r"><span class="${tb>=0?'up':'down'}">${eur(tb)}</span></td><td class="r sm">${eur(sum(ref.filter(x=>x!=null)))}</td></tr>`:'';
-  return `<table class="dtable"><thead><tr><th>Mese</th><th class="r">Entrate</th><th class="r">Uscite</th><th class="r">Saldo 2026</th><th class="r">Saldo 2025</th></tr></thead><tbody>${rows}${tot}</tbody></table>`;
+  const tot=any?`<tr class="tot"><td>Totale mesi reali</td><td class="r">${eur(ti)}</td><td class="r">${eur(to)}</td><td class="r"><span class="${tb>=0?'up':'down'}">${eur(tb)}</span></td><td class="r sm">${eur(sum(ref.filter(x=>x!=null)))}</td><td></td></tr>`:'';
+  return `<table class="dtable"><thead><tr><th>Mese</th><th class="r">Entrate</th><th class="r">Uscite</th><th class="r">Saldo 2026</th><th class="r">Saldo 2025</th><th class="r">Stato</th></tr></thead><tbody>${rows}${tot}</tbody></table>`;
 }
 
 let CHART_QUEUE=[];
@@ -671,7 +723,7 @@ function viewCassa(d){
   const leg=years.map(y=>({key:y,name:'Bilancio '+y,color:cassaCol(y)}));
   const main=isT?tableCassa(state.co,cass):legendHTML(ck,leg)+`<div id="${ck}"></div>`;
   return `
-  <div class="panel"><div class="panel-head"><div><h3>Flussi di cassa · entrate, uscite e saldo</h3><p>Saldo mensile 2026 (aggiornato con i flussi caricati) e anni precedenti</p></div><div style="display:flex;gap:8px;flex-wrap:wrap">${granHTML()}${segHTML('cassa')}</div></div>${main}<div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Il saldo è entrate − uscite: sopra lo zero il mese chiude in positivo, sotto lo zero in negativo. Il 2026 si aggiorna dal box <b>Estratto conto</b> in Aggiornamento.</div></div>
+  <div class="panel"><div class="panel-head"><div><h3>Flussi di cassa · entrate, uscite e saldo</h3><p>Saldo mensile 2026 (aggiornato con i flussi caricati) e anni precedenti</p></div><div style="display:flex;gap:8px;flex-wrap:wrap">${granHTML()}${segHTML('cassa')}</div></div>${main}<div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Il saldo è entrate − uscite: sopra lo zero il mese chiude in positivo, sotto lo zero in negativo. Ogni mese del 2026 si costruisce <b>sommando gli estratti settimanali</b> caricati: finché mancano settimane è <b>parziale</b>, quando tutte le settimane del mese sono state caricate diventa <b>completo</b> con il dato dell'intero mese.</div></div>
   <div class="panel"><div class="panel-head"><div><h3>Saldo di cassa cumulato per anno</h3><p>Somma dei mesi disponibili</p></div></div><div id="cashAnno"></div></div>`;
 }
 function setGran(g){state.cassaGran=g;render();}
@@ -1079,13 +1131,17 @@ function aggregateFlussi(p){
     }else{ const vi=parseAmount(r[p.inIdx]); let vo=parseAmount(r[p.outIdx]); if(vi==null&&vo==null){skipped++;return;} const pv=(vi||0), nv=(vo!=null?Math.abs(vo):0); amt=pv-nv;
       inn[mi]+=pv; out[mi]+=nv; cnt[mi]++;
     }
-    if(dt){ // aggregazione per settimana ISO (per la vista settimanale)
-      const wk=isoWeekKey(dt), w=weeks[wk]||(weeks[wk]={in:0,out:0,cnt:0,saldo:null,_ts:-1});
-      if(amt>=0)w.in+=amt; else w.out+=-amt; w.cnt++;
+    if(dt){ // aggregazione per settimana ISO (vista settimanale) + ripartizione per mese (per il consuntivo mensile)
+      const wk=isoWeekKey(dt), w=weeks[wk]||(weeks[wk]={in:0,out:0,cnt:0,saldo:null,_ts:-1,byMonth:{}});
+      if(!w.byMonth)w.byMonth={};
+      const bmk=dt.getFullYear()+'-'+dt.getMonth(); // es. "2026-9" = ottobre 2026 (giorni della settimana che cadono in quel mese)
+      const bm=w.byMonth[bmk]||(w.byMonth[bmk]={in:0,out:0});
+      if(amt>=0){w.in+=amt;bm.in+=amt;} else {w.out+=-amt;bm.out+=-amt;} w.cnt++;
       if(p.saldoIdx!=null&&p.saldoIdx>=0){const sv=parseAmount(r[p.saldoIdx]); if(sv!=null&&dt.getTime()>=w._ts){w.saldo=sv;w._ts=dt.getTime();}}
     }
   });
-  Object.values(weeks).forEach(w=>{w.in=Math.round(w.in*100)/100;w.out=Math.round(w.out*100)/100;delete w._ts;});
+  Object.values(weeks).forEach(w=>{w.in=Math.round(w.in*100)/100;w.out=Math.round(w.out*100)/100;delete w._ts;
+    if(w.byMonth)for(const k in w.byMonth){w.byMonth[k].in=Math.round(w.byMonth[k].in*100)/100;w.byMonth[k].out=Math.round(w.byMonth[k].out*100)/100;}});
   return {inn,out,cnt,skipped,noDate,years,weeks};
 }
 function renderFlussiPreview(){
