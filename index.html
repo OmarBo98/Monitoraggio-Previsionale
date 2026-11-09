@@ -349,6 +349,9 @@ function migrate(s){
     }
     if(!s[co].objectives)s[co].objectives={...OBJ_DEF[co]};
     if(s[co].cassaObjV!==2){s[co].objectives.saldoMin=12500;s[co].objectives.entrateMin=12500;s[co].saldoIniziale=12500;s[co].cassaObjV=2;}
+    // pulizia una-tantum: gli estratti che hanno le settimane (year-aware) non devono più tenere override mensili
+    // senza anno (che finivano tutti sul 2026 e si sovrascrivevano fra anni diversi)
+    if(s[co].flussiClean!==1){ (s[co].uploads||[]).forEach(u=>{ if(u.target==='flussi'&&u.weeks&&Object.keys(u.weeks).length) u.months={}; }); if((s[co].uploads||[]).some(u=>u.target==='flussi'&&u.weeks&&Object.keys(u.weeks).length)) s[co].flussi={}; s[co].flussiClean=1; }
     if(s[co].saldoIniziale===undefined)s[co].saldoIniziale=null;
     if(!s[co].accantonamenti)s[co].accantonamenti={iva:{},tfr:{}};
     s[co].accantonamenti.iva=s[co].accantonamenti.iva||{};
@@ -367,7 +370,20 @@ function recomputeOverrides(co){
   const t={ricavi:{},costiOper:{},buste:{},flussi:{}}, wk={};
   STORE[co].uploads.slice().sort((a,b)=>a.ts-b.ts).forEach(u=>{
     for(const m in u.months)t[u.target][m]=u.months[m];
-    if(u.weeks)for(const k in u.weeks)wk[k]=u.weeks[k];
+    if(u.weeks)for(const k in u.weeks){
+      const src=u.weeks[k];
+      // una stessa settimana ISO a cavallo d'anno (es. 2025-W01 = fine dic 2024 + inizio gen 2025) può arrivare
+      // da due estratti diversi: unisco la ripartizione per mese invece di sovrascrivere, così non perdo un anno
+      if(wk[k]&&(src.byMonth||wk[k].byMonth)){
+        const d=wk[k]; d.byMonth=d.byMonth||{}; const sbm=src.byMonth||{};
+        for(const bmk in sbm)d.byMonth[bmk]=sbm[bmk]; // last-wins per singolo mese-anno dentro la settimana
+        let ti=0,to=0;for(const bmk in d.byMonth){ti+=d.byMonth[bmk].in||0;to+=d.byMonth[bmk].out||0;}
+        d.in=Math.round(ti*100)/100; d.out=Math.round(to*100)/100;
+        if(src.saldo!=null)d.saldo=src.saldo;
+      }else{
+        wk[k]=Object.assign({},src); if(src.byMonth)wk[k].byMonth=Object.assign({},src.byMonth);
+      }
+    }
   });
   STORE[co].ricavi=t.ricavi;STORE[co].costiOper=t.costiOper;STORE[co].buste=t.buste;STORE[co].flussi=t.flussi;STORE[co].weeks=wk;
 }
@@ -1120,40 +1136,38 @@ function firstAmountStr(s){const m=(s||'').match(/-?\d{1,3}(?:[.\s]\d{3})+,\d{2}
 async function estrattoPdfToRows(bytes){
   const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
   const movs=[]; let movPages=0;
+  const STARTS_AMT=/^\s*-?\d{1,3}(?:[.\s]\d{3})*,\d{2}(?!\d)/; // l'item INIZIA con un importo (gestisce importo fuso con descrizione)
   for(let pn=1;pn<=pdf.numPages;pn++){
     const page=await pdf.getPage(pn);
     const vp=page.getViewport({scale:1});
     const tc=await page.getTextContent();
-    const items=tc.items.filter(it=>it.str&&it.str.trim()).map(it=>({s:it.str.trim(),x:it.transform[4],y:vp.height-it.transform[5]}));
+    // r = bordo destro dell'item (x + larghezza): per i numeri allineati a destra è stabile
+    const items=tc.items.filter(it=>it.str&&it.str.trim()).map(it=>({s:it.str.trim(),x:it.transform[4],r:it.transform[4]+(it.width||0),y:vp.height-it.transform[5]}));
     if(!items.length)continue;
-    const hx={}; let hy=null;
+    let dareX=null,avereX=null,hy=null;
     items.forEach(it=>{const u=it.s.toUpperCase().replace(/\s/g,'');
-      if(u==='DATA'&&hx.data==null)hx.data=it.x;
-      if(u==='VALUTA'&&hx.valuta==null){hx.valuta=it.x;hy=it.y;}
-      if(u.indexOf('MOV.DARE')>=0&&hx.dare==null)hx.dare=it.x;
-      if(u.indexOf('MOV.AVERE')>=0&&hx.avere==null)hx.avere=it.x;
-      if(u.indexOf('DESCRIZIONE')>=0&&hx.desc==null)hx.desc=it.x;
+      if(u.indexOf('MOV.DARE')>=0&&dareX==null)dareX=it.x;
+      if(u.indexOf('MOV.AVERE')>=0&&avereX==null){avereX=it.x;hy=it.y;}
     });
-    if(hx.valuta==null||hx.dare==null||hx.avere==null||hx.desc==null)continue; // non è una pagina di movimenti
+    if(dareX==null||avereX==null||!(avereX>dareX))continue; // non è una pagina di movimenti
     movPages++;
-    const dataX=hx.data!=null?hx.data:hx.valuta-20;
-    const colOf=x=>{ if(x<(dataX+hx.valuta)/2)return 'data'; if(x<hx.dare-6)return 'valuta'; if(x<hx.avere-6)return 'dare'; if(x<hx.desc-6)return 'avere'; return 'desc'; };
     const body=items.filter(it=>it.y>hy+2).sort((a,b)=>a.y-b.y||a.x-b.x);
     const rows=[]; let cur=null,cy=null;
-    body.forEach(it=>{ if(cy==null||Math.abs(it.y-cy)>4){cur={data:[],valuta:[],dare:[],avere:[],desc:[]};rows.push(cur);cy=it.y;} cur[colOf(it.x)].push(it.s); });
+    body.forEach(it=>{ if(cy==null||Math.abs(it.y-cy)>4){cur=[];rows.push(cur);cy=it.y;} cur.push(it); });
     rows.forEach(r=>{
-      const dataTxt=r.data.join(' '), valTxt=r.valuta.join(' '), dareTxt=r.dare.join(' '), aveTxt=r.avere.join(' '), desc=r.desc.join(' ');
-      // la data valuta può stare nella colonna VALUTA (date separate) oppure fusa nella colonna DATA
-      // come "gg/mm/aa gg/mm/aa" (data operazione + data valuta): prendo sempre l'ultima data trovata = valuta
-      const dm=(dataTxt+' '+valTxt).match(/\d{1,2}\/\d{1,2}\/\d{2,4}/g);
-      if(!dm)return;                                            // nessuna data operazione/valuta
+      // data valuta: dagli item a sinistra della colonna DARE (date operazione/valuta, anche fuse "gg/mm/aa gg/mm/aa")
+      const leftTxt=r.filter(it=>it.x<dareX-4).map(it=>it.s).join(' ');
+      const dm=leftTxt.match(/\d{1,2}\/\d{1,2}\/\d{2,4}/g);
+      if(!dm)return;                                            // nessuna data: riga di continuazione/intestazione
       const val=dm[dm.length-1];                                 // data valuta = l'ultima (la seconda) data
-      // salta il saldo di apertura (su alcune pagine "SALDO INIZIALE" e l'importo sono fusi nella colonna importo,
-      // e la valuta è mascherata con ***), controlla tutte le celle
-      if(/SALDO\s+INIZIALE/i.test(dataTxt+' '+valTxt+' '+dareTxt+' '+aveTxt+' '+desc))return;
-      if(/\*{3,}/.test(dataTxt+' '+valTxt))return;
-      // l'importo può essere fuso con la descrizione ("854,00 Vers. ass...") → prendo solo il primo importo valido
-      const ave=firstAmountStr(aveTxt), dare=firstAmountStr(dareTxt);
+      const allTxt=r.map(it=>it.s).join(' ');
+      if(/SALDO\s+INIZIALE/i.test(allTxt)||/\*{3,}/.test(leftTxt))return; // salta il saldo di apertura
+      // importi: item della zona numerica che INIZIANO con un importo.
+      // DARE = numero che finisce prima della colonna AVERE (bordo destro ≤ avereX); AVERE = finisce più a destra
+      // (robusto anche quando l'intestazione MOV.AVERE e DESCRIZIONE sono fuse in un unico blocco).
+      let dare='',ave='';
+      r.forEach(it=>{ if(it.x<dareX-4)return; if(!STARTS_AMT.test(it.s))return; const a=firstAmountStr(it.s); if(a==='')return;
+        if(it.r<=avereX+6){ if(dare==='')dare=a; } else { if(ave==='')ave=a; } });
       if(ave===''&&dare==='')return;                            // nessun importo
       movs.push([val,ave,dare]);                                // [data valuta, entrate(avere), uscite(dare)]
     });
