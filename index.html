@@ -256,6 +256,9 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
 .ov-opt[data-co="nsa"].on .dot{border-color:var(--amber);background:var(--amber)}
 .ov-yr{display:flex;align-items:center;gap:10px}
 .ov-yr input{width:110px;font-family:var(--mono);font-size:14px;padding:9px 11px;border:1.5px solid var(--line);border-radius:10px}
+.ov-yrsel{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.ov-yrsel label{font-size:12.5px;font-weight:600;color:var(--ink-700)}
+.ov-yrsel select{font-family:var(--mono);font-size:14px;font-weight:600;padding:7px 10px;border:1.5px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink-800);cursor:pointer}
 .ov-seg{display:inline-flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px}
 .ov-seg button{border:none;background:var(--card);padding:8px 16px;font-size:13px;font-weight:600;color:var(--ink-500);cursor:pointer}
 .ov-seg button.on{background:var(--emerald-600);color:#fff}
@@ -1019,7 +1022,7 @@ function weeksOfYearByMonth(year){
 }
 function openScopeModal(kind,files){
   const isBuste=kind==='buste';
-  SCOPE_MODAL={kind,files,sc:{co:state.co,year:YEAR,mode:(isBuste?'manual':'auto'),gran:'mese',months:(isBuste?[new Date().getMonth()]:[]),weeks:[]}};
+  SCOPE_MODAL={kind,files,sc:{co:state.co,year:YEAR,mode:(isBuste?'manual':'auto'),gran:'mese',monthKeys:(isBuste?[YEAR+'-'+new Date().getMonth()]:[]),weeks:[]}};
   renderScopeModal();
 }
 function renderScopeModal(){
@@ -1031,19 +1034,23 @@ function renderScopeModal(){
   let periodHTML='';
   if(sc.mode==='manual'){
     const segW = isBuste?'' :`<div class="ov-seg"><button data-gran="mese" class="${sc.gran==='mese'?'on':''}">Mesi</button><button data-gran="settimana" class="${sc.gran==='settimana'?'on':''}">Settimane</button></div>`;
+    const yrSel=`<div class="ov-yrsel"><label>Anno</label><select class="sel" id="ovPickYear">${yearOpts(sc.year)}</select></div>`;
     let picker='';
     if(sc.gran==='mese'){
-      picker=`<div class="ov-selall" data-selall="1">Seleziona / deseleziona tutti</div><div class="ov-chips">`+
-        MESI_FULL.map((m,i)=>`<div class="ov-chip ${sc.months.includes(i)?'on':''}" data-m="${i}"><span class="bx">${sc.months.includes(i)?'✓':''}</span>${m}</div>`).join('')+`</div>`;
+      picker=yrSel+`<div class="ov-selall" data-selall="1">Seleziona / deseleziona tutti (${sc.year})</div><div class="ov-chips">`+
+        MESI_FULL.map((m,i)=>{const key=sc.year+'-'+i, on=sc.monthKeys.includes(key);return `<div class="ov-chip ${on?'on':''}" data-m="${i}"><span class="bx">${on?'✓':''}</span>${m}</div>`;}).join('')+`</div>`;
     }else{
       const map=weeksOfYearByMonth(sc.year);
-      picker=`<div class="ov-selall" data-selall="1">Seleziona / deseleziona tutte</div>`;
+      picker=yrSel+`<div class="ov-selall" data-selall="1">Seleziona / deseleziona tutte (${sc.year})</div>`;
       for(let m=0;m<12;m++){ if(!map[m].length)continue;
         picker+=`<div class="ov-wkgroup"><div class="gl">${MESI_FULL[m]}</div><div class="ov-chips">`+
           map[m].map(w=>`<div class="ov-chip wk ${sc.weeks.includes(w.key)?'on':''}" data-w="${w.key}"><div style="display:flex;align-items:center;gap:6px"><span class="bx">${sc.weeks.includes(w.key)?'✓':''}</span>S${w.num}</div><span class="wd">${w.range}</span></div>`).join('')+`</div></div>`;
       }
     }
-    periodHTML=`<div class="ov-sec"><label class="hd">${isBuste?'Mese di competenza':'Periodi coperti dal file'}</label>${segW}${picker}<div class="ov-hint">Puoi selezionarne più di uno se il file copre un periodo lungo.</div></div>`;
+    let summary='';
+    if(sc.gran==='mese'&&sc.monthKeys.length) summary=`<div class="ov-hint" style="margin-top:8px">Selezionati: <b>${sc.monthKeys.slice().sort().map(k=>{const [y,mm]=k.split('-');return MESI_AB[+mm]+' '+y;}).join(', ')}</b></div>`;
+    if(sc.gran==='settimana'&&sc.weeks.length){const yrs=[...new Set(sc.weeks.map(w=>w.split('-W')[0]))].sort();summary=`<div class="ov-hint" style="margin-top:8px">Selezionate: <b>${sc.weeks.length} settimane</b> (${yrs.join(', ')})</div>`;}
+    periodHTML=`<div class="ov-sec"><label class="hd">${isBuste?'Mese di competenza':'Periodi coperti dal file'}</label>${segW}${picker}<div class="ov-hint">Scegli l'anno e poi i ${sc.gran==='settimana'?'le settimane':'mesi'}; puoi selezionarne di più e anche di anni diversi.</div>${summary}</div>`;
   }
   const modeSec = isBuste?'' : `<div class="ov-sec"><label class="hd">Come assegnare il periodo?</label><div class="ov-radios"><label class="ov-opt ${sc.mode==='auto'?'on':''}" data-mode="auto"><span class="dot"></span>Rileva dalle date del file</label><label class="ov-opt ${sc.mode==='manual'?'on':''}" data-mode="manual"><span class="dot"></span>Scelgo io i periodi</label></div></div>`;
   host.innerHTML=`<div class="ov"><div class="ov-card">
@@ -1053,7 +1060,6 @@ function renderScopeModal(){
         <label class="ov-opt ${sc.co==='sanitech'?'on':''}" data-co="sanitech"><span class="dot"></span>${DATA.sanitech.short}</label>
         <label class="ov-opt ${sc.co==='nsa'?'on':''}" data-co="nsa"><span class="dot"></span>${DATA.nsa.short}</label>
       </div></div>
-      <div class="ov-sec"><label class="hd">Anno</label><div class="ov-yr"><input type="number" id="ovYear" value="${sc.year}" min="2019" max="2030" step="1"></div></div>
       ${modeSec}
       ${periodHTML}
     </div>
@@ -1061,18 +1067,22 @@ function renderScopeModal(){
   </div></div>`;
   host.querySelectorAll('.ov-opt[data-co]').forEach(el=>el.onclick=()=>{sc.co=el.dataset.co;renderScopeModal();});
   host.querySelectorAll('.ov-opt[data-mode]').forEach(el=>el.onclick=()=>{sc.mode=el.dataset.mode;renderScopeModal();});
-  const yr=host.querySelector('#ovYear'); if(yr)yr.onchange=()=>{sc.year=+yr.value||YEAR; sc.weeks=[]; renderScopeModal();};
+  const yr=host.querySelector('#ovPickYear'); if(yr)yr.onchange=()=>{sc.year=+yr.value||YEAR; renderScopeModal();}; // non azzera le scelte: puoi mescolare anni diversi
   host.querySelectorAll('.ov-seg button[data-gran]').forEach(el=>el.onclick=()=>{sc.gran=el.dataset.gran;renderScopeModal();});
-  host.querySelectorAll('.ov-chip[data-m]').forEach(el=>el.onclick=()=>{const i=+el.dataset.m;const k=sc.months.indexOf(i);if(k>=0)sc.months.splice(k,1);else sc.months.push(i);renderScopeModal();});
+  host.querySelectorAll('.ov-chip[data-m]').forEach(el=>el.onclick=()=>{const key=sc.year+'-'+(+el.dataset.m);const k=sc.monthKeys.indexOf(key);if(k>=0)sc.monthKeys.splice(k,1);else sc.monthKeys.push(key);renderScopeModal();});
   host.querySelectorAll('.ov-chip[data-w]').forEach(el=>el.onclick=()=>{const w=el.dataset.w;const k=sc.weeks.indexOf(w);if(k>=0)sc.weeks.splice(k,1);else sc.weeks.push(w);renderScopeModal();});
-  const sa=host.querySelector('[data-selall]'); if(sa)sa.onclick=()=>{ if(sc.gran==='mese'){sc.months=sc.months.length===12?[]:[...Array(12).keys()];} else {const all=[];const map=weeksOfYearByMonth(sc.year);for(let m=0;m<12;m++)map[m].forEach(w=>all.push(w.key));sc.weeks=sc.weeks.length===all.length?[]:all;} renderScopeModal(); };
+  const sa=host.querySelector('[data-selall]'); if(sa)sa.onclick=()=>{
+    if(sc.gran==='mese'){const keys=[...Array(12).keys()].map(i=>sc.year+'-'+i); const allOn=keys.every(k=>sc.monthKeys.includes(k)); sc.monthKeys=sc.monthKeys.filter(k=>!keys.includes(k)); if(!allOn)sc.monthKeys.push(...keys);}
+    else {const map=weeksOfYearByMonth(sc.year); const all=[]; for(let m=0;m<12;m++)map[m].forEach(w=>all.push(w.key)); const allOn=all.every(k=>sc.weeks.includes(k)); sc.weeks=sc.weeks.filter(k=>!all.includes(k)); if(!allOn)sc.weeks.push(...all);}
+    renderScopeModal();
+  };
   host.querySelector('[data-act="cancel"]').onclick=()=>closeScopeModal();
   host.querySelector('[data-act="ok"]').onclick=()=>confirmScopeModal();
 }
 function closeScopeModal(){const h=document.getElementById('scopeModal');if(h)h.innerHTML='';SCOPE_MODAL=null;}
 function confirmScopeModal(){
   const M=SCOPE_MODAL; if(!M)return; const sc=M.sc;
-  if(sc.mode==='manual'&&sc.gran==='mese'&&!sc.months.length){alert('Seleziona almeno un mese.');return;}
+  if(sc.mode==='manual'&&sc.gran==='mese'&&!sc.monthKeys.length){alert('Seleziona almeno un mese.');return;}
   if(sc.mode==='manual'&&sc.gran==='settimana'&&!sc.weeks.length){alert('Seleziona almeno una settimana.');return;}
   const kind=M.kind, files=M.files; closeScopeModal(); proceedWithFiles(kind,files,sc);
 }
@@ -1133,18 +1143,18 @@ async function parseFlussiPDF(fname,bytes,scope){
     renderFlussiPreview();
   }catch(e){ msgBox('flussi','err','Errore nella lettura del PDF: '+e.message); }
 }
+function yearOpts(sel){let o='';for(let y=YEAR+1;y>=2019;y--)o+=`<option value="${y}" ${y===sel?'selected':''}>${y}</option>`;return o;}
 function rowInScope(dt,sc){
   if(!sc||sc.mode!=='manual')return true;
-  if(sc.year&&dt.getFullYear()!==sc.year)return false;
   if(sc.gran==='settimana')return sc.weeks.includes(isoWeekKey(dt));
-  return sc.months.includes(dt.getMonth());
+  return sc.monthKeys.includes(dt.getFullYear()+'-'+dt.getMonth());
 }
 function scopeNote(sc){
   if(!sc)return '';
   const co=DATA[sc.co].short;
   if(sc.mode!=='manual')return `Azienda: <b>${co}</b> · periodi rilevati dalle date del file`;
-  const per = sc.gran==='settimana' ? sc.weeks.length+' settiman'+(sc.weeks.length===1?'a':'e') : sc.months.map(m=>MESI_AB[m]).join(', ');
-  return `Azienda: <b>${co}</b> · ${sc.year} · ${per}`;
+  const per = sc.gran==='settimana' ? sc.weeks.length+' settiman'+(sc.weeks.length===1?'a':'e') : sc.monthKeys.slice().sort().map(k=>{const [y,m]=k.split('-');return MESI_AB[+m]+' '+y;}).join(', ');
+  return `Azienda: <b>${co}</b> · ${per}`;
 }
 function parseFatture(kind,fname,bytes,scope){
   const aoa=fileToAOA(bytes);
@@ -1430,8 +1440,8 @@ function renderBustePreview(){
   const body=document.getElementById('body-buste'); const p=PARSE.buste; if(!p||!body)return;
   const tot=p.files.reduce((s,f)=>s+(parseFloat(f.val)||0),0);
   const rows=p.files.map((f,i)=>`<div class="fr"><span title="${f.name}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px">${f.err?'⚠ ':''}${f.name}</span><input type="number" step="0.01" data-bi="${i}" value="${(parseFloat(f.val)||0).toFixed(2)}"></div>`).join('');
-  const sc=p.scope||{co:state.co,months:[new Date().getMonth()]};
-  const ms=(sc.months&&sc.months.length)?sc.months.slice().sort((a,b)=>a-b):[new Date().getMonth()];
+  const sc=p.scope||{co:state.co,monthKeys:[YEAR+'-'+new Date().getMonth()]};
+  const ms=(sc.monthKeys&&sc.monthKeys.length)?[...new Set(sc.monthKeys.map(k=>+k.split('-')[1]))].sort((a,b)=>a-b):[new Date().getMonth()];
   const msLabel=ms.map(m=>MESI_FULL[m]).join(', ');
   body.innerHTML=`
     <div class="msg info">${scopeNote(sc)}</div>
