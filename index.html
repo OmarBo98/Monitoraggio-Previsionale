@@ -1098,6 +1098,8 @@ function proceedWithFiles(kind,files,scope){
 }
 function isPdfBytes(b,name){ return (b&&b.length>4&&b[0]===0x25&&b[1]===0x50&&b[2]===0x44&&b[3]===0x46)||/\.pdf$/i.test(name||''); } // %PDF
 /* ---- estratto conto in PDF (tabella DATA/VALUTA/MOV.DARE/MOV.AVERE/DESCRIZIONE, es. BCC) ---- */
+// primo importo in stile italiano in una stringa (gestisce l'importo fuso con testo che segue)
+function firstAmountStr(s){const m=(s||'').match(/-?\d{1,3}(?:[.\s]\d{3})+,\d{2}|-?\d+,\d{2}/);return m?m[0]:'';}
 async function estrattoPdfToRows(bytes){
   const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
   const movs=[]; let movPages=0;
@@ -1123,11 +1125,20 @@ async function estrattoPdfToRows(bytes){
     const rows=[]; let cur=null,cy=null;
     body.forEach(it=>{ if(cy==null||Math.abs(it.y-cy)>4){cur={data:[],valuta:[],dare:[],avere:[],desc:[]};rows.push(cur);cy=it.y;} cur[colOf(it.x)].push(it.s); });
     rows.forEach(r=>{
-      const val=r.valuta.join(' ').trim(), dare=r.dare.join(' ').trim(), ave=r.avere.join(' ').trim(), desc=r.desc.join(' ');
-      if(!/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(val))return;      // serve una data valuta
-      if(/SALDO\s+INIZIALE/i.test(desc))return;               // salta il saldo di apertura
-      if(dare===''&&ave==='')return;                          // nessun importo
-      movs.push([val,ave,dare]);                               // [data valuta, entrate(avere), uscite(dare)]
+      const dataTxt=r.data.join(' '), valTxt=r.valuta.join(' '), dareTxt=r.dare.join(' '), aveTxt=r.avere.join(' '), desc=r.desc.join(' ');
+      // la data valuta può stare nella colonna VALUTA (date separate) oppure fusa nella colonna DATA
+      // come "gg/mm/aa gg/mm/aa" (data operazione + data valuta): prendo sempre l'ultima data trovata = valuta
+      const dm=(dataTxt+' '+valTxt).match(/\d{1,2}\/\d{1,2}\/\d{2,4}/g);
+      if(!dm)return;                                            // nessuna data operazione/valuta
+      const val=dm[dm.length-1];                                 // data valuta = l'ultima (la seconda) data
+      // salta il saldo di apertura (su alcune pagine "SALDO INIZIALE" e l'importo sono fusi nella colonna importo,
+      // e la valuta è mascherata con ***), controlla tutte le celle
+      if(/SALDO\s+INIZIALE/i.test(dataTxt+' '+valTxt+' '+dareTxt+' '+aveTxt+' '+desc))return;
+      if(/\*{3,}/.test(dataTxt+' '+valTxt))return;
+      // l'importo può essere fuso con la descrizione ("854,00 Vers. ass...") → prendo solo il primo importo valido
+      const ave=firstAmountStr(aveTxt), dare=firstAmountStr(dareTxt);
+      if(ave===''&&dare==='')return;                            // nessun importo
+      movs.push([val,ave,dare]);                                // [data valuta, entrate(avere), uscite(dare)]
     });
   }
   return {movs,movPages,numPages:pdf.numPages};
