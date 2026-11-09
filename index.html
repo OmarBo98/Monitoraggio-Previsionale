@@ -400,8 +400,10 @@ function weekLabel(key){
   return {num:w, range:`${s.getUTCDate()} ${sm}–${e.getUTCDate()} ${em}`,
           mon:`${s.getUTCDate()} ${sm}`, fri:`${fr.getUTCDate()} ${fm}`};
 }
-function getCassaWeekly(co){
-  const wk=STORE[co].weeks||{}, keys=Object.keys(wk).sort();
+function getCassaWeekly(co,year){
+  const allwk=STORE[co].weeks||{};
+  const wk=year?Object.fromEntries(Object.entries(allwk).filter(([k])=>k.split('-W')[0]==String(year))):allwk;
+  const keys=Object.keys(wk).sort();
   const obj=STORE[co].objectives||{}, open=STORE[co].saldoIniziale;
   let prevClose=(open!=null?open:null);
   const rows=keys.map(k=>{
@@ -462,28 +464,36 @@ function getConsuntivo(co){
   }
   return {ricavi:ric,costiOper:oper,costiBuste:bus,costiTot:tot,actualMonths:last};
 }
-function getCassa(co){
+function getCassa(co,year){
+  year=year||YEAR;
   const d=DATA[co], ov=STORE[co].flussi, cf=d.cashFlow2026||{in:[],out:[]};
-  const wkM=monthsFromWeeks(co,2026); // somma degli estratti settimanali caricati, per mese
+  const wkM=monthsFromWeeks(co,year); // somma degli estratti settimanali caricati per quell'anno, per mese
   const inn=[],out=[],bil=[],src=[];
   for(let i=0;i<12;i++){
-    let vi=null,vo=null,s='base';
-    if(wkM.hasAny[i]){ // priorità agli estratti settimanali: il mese si costruisce sommando le settimane caricate
+    let vi=null,vo=null,s='';
+    if(wkM.hasAny[i]){ // priorità agli estratti (settimanali) caricati per l'anno selezionato
       vi=wkM.inn[i];vo=wkM.out[i];s=wkM.complete[i]?'completo':'parziale';
-    }else if(hasOv(ov,i)){ // altrimenti un valore mensile inserito a mano / da estratto mensile
+    }else if(year===YEAR&&hasOv(ov,i)){ // solo 2026: valore mensile inserito a mano
       vi=ov[i].in;vo=ov[i].out;s='manuale';
-    }else{ // altrimenti il dato base del previsionale/consuntivo
-      vi=cf.in[i]!=null?cf.in[i]:null;vo=cf.out[i]!=null?cf.out[i]:null;
+    }else if(year===YEAR&&(cf.in[i]!=null||cf.out[i]!=null)){ // solo 2026: dato base del consuntivo
+      vi=cf.in[i]!=null?cf.in[i]:null;vo=cf.out[i]!=null?cf.out[i]:null;s='base';
     }
     inn.push(vi);out.push(vo);src.push(s);
     bil.push((vi==null&&vo==null)?null:(vi||0)-(vo||0));
   }
-  const years={}; Object.keys(d.cash).forEach(y=>years[y]=(y==='2026')?bil:d.cash[y]);
-  return {inn,out,bil,years,src};
+  const years={}; Object.keys(d.cash).forEach(y=>years[y]=(+y===year)?bil:d.cash[y]); years[String(year)]=bil;
+  return {inn,out,bil,years,src,year};
+}
+// anni disponibili nella cassa: 2026 base + anni con estratti caricati + anni storici (DATA.cash)
+function cassaYears(co){
+  const s=new Set([YEAR]);
+  Object.keys(STORE[co].weeks||{}).forEach(k=>{const y=+k.split('-W')[0];if(y)s.add(y);});
+  Object.keys(DATA[co].cash||{}).forEach(y=>s.add(+y));
+  return [...s].sort((a,b)=>b-a);
 }
 function uploadedCount(co){const ov=STORE[co];const s=new Set();['ricavi','costiOper','buste','flussi'].forEach(k=>Object.keys(ov[k]).forEach(m=>s.add(k+m)));return s.size;}
 
-let state={co:'sanitech',view:'panoramica',toggles:{},mode:{ricavi:'chart',costi:'chart',cassa:'chart'},cassaGran:'mese',monMode:'sintesi'};
+let state={co:'sanitech',view:'panoramica',toggles:{},mode:{ricavi:'chart',costi:'chart',cassa:'chart'},cassaGran:'mese',cassaYear:YEAR,monMode:'sintesi'};
 let PARSE={emesse:null,ricevute:null,buste:null,flussi:null};
 let EDITING=null;
 let IMPORT_PENDING=null;
@@ -630,7 +640,8 @@ function prevRealTable(prev,real,favorHigh,unit){
   <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><b>Progressivo</b>: somma cumulata mese per mese usando il dato <b>reale</b> dove disponibile e la <b>previsione</b> per i mesi futuri. L'ultima riga è quindi la proiezione a fine anno (consuntivo finora + previsto per il resto).</div>`;
 }
 function tableCassa(co,cass){
-  const ref=DATA[co].cash['2025']||[];
+  const yr=cass.year||YEAR, refYr=yr-1;
+  const ref=DATA[co].cash[String(refYr)]||[];
   const src=cass.src||[];
   const badge=s=>{
     if(s==='completo')return '<span class="st-badge ok" title="Tutte le settimane del mese sono state caricate">● completo</span>';
@@ -646,7 +657,7 @@ function tableCassa(co,cass){
     rows+=`<tr class="${has?'has':''}"><td>${MESI_FULL[i]}</td><td class="r">${vi!=null?eur(vi):'—'}</td><td class="r">${vo!=null?eur(vo):'—'}</td><td class="r"><span class="${has?(bl>=0?'up':'down'):''}" style="font-weight:600">${has?eur(bl):'—'}</span></td><td class="r sm">${r5!=null?eur(r5):'—'}</td><td class="r">${has?badge(src[i]):'<span class="sm mut">—</span>'}</td></tr>`;
   }
   const tot=any?`<tr class="tot"><td>Totale mesi reali</td><td class="r">${eur(ti)}</td><td class="r">${eur(to)}</td><td class="r"><span class="${tb>=0?'up':'down'}">${eur(tb)}</span></td><td class="r sm">${eur(sum(ref.filter(x=>x!=null)))}</td><td></td></tr>`:'';
-  return `<table class="dtable"><thead><tr><th>Mese</th><th class="r">Entrate</th><th class="r">Uscite</th><th class="r">Saldo 2026</th><th class="r">Saldo 2025</th><th class="r">Stato</th></tr></thead><tbody>${rows}${tot}</tbody></table>`;
+  return `<table class="dtable"><thead><tr><th>Mese</th><th class="r">Entrate</th><th class="r">Uscite</th><th class="r">Saldo ${yr}</th><th class="r">Saldo ${refYr}</th><th class="r">Stato</th></tr></thead><tbody>${rows}${tot}</tbody></table>`;
 }
 
 let CHART_QUEUE=[];
@@ -762,22 +773,28 @@ function granHTML(){
   const g=state.cassaGran;
   return `<div class="seg"><button class="${g==='mese'?'on':''}" onclick="setGran('mese')">Mensile</button><button class="${g==='settimana'?'on':''}" onclick="setGran('settimana')">Settimanale</button></div>`;
 }
+function cassaYearHTML(){
+  const ys=cassaYears(state.co); if(!ys.includes(state.cassaYear))state.cassaYear=YEAR;
+  return `<div class="ov-yrsel" style="margin:0"><label>Anno</label><select class="sel" onchange="setCassaYear(+this.value)">${ys.map(y=>`<option value="${y}" ${y===state.cassaYear?'selected':''}>${y}</option>`).join('')}</select></div>`;
+}
+function setCassaYear(y){state.cassaYear=y;render();}
 function viewCassa(d){
+  const yr=state.cassaYear||YEAR;
   if(state.cassaGran==='settimana')return viewCassaWeek(d);
-  const cass=getCassa(state.co);
+  const cass=getCassa(state.co,yr);
   const years=Object.keys(cass.years).filter(y=>cass.years[y].some(v=>v!=null)).sort(), ck='cashChart', isT=state.mode.cassa==='table';
-  const cassaCol=y=>y==='2026'?'#059669':(YEAR_COLORS[y]||'#64748b');
-  if(!isT)q(()=>{const series=years.map(y=>({key:y,name:'Bilancio '+y,color:cassaCol(y),values:cass.years[y],width:y==='2026'?2.6:1.8,markers:y==='2026',dim:y!=='2026',hidden:isOff(ck,y)}));drawLine(ck,{series,baseZero:false});});
+  const cassaCol=y=>(+y===yr)?'#059669':(YEAR_COLORS[y]||'#64748b');
+  if(!isT)q(()=>{const series=years.map(y=>({key:y,name:'Bilancio '+y,color:cassaCol(y),values:cass.years[y],width:(+y===yr)?2.6:1.8,markers:(+y===yr),dim:(+y!==yr),hidden:isOff(ck,y)}));drawLine(ck,{series,baseZero:false});});
   q(()=>{const bars=years.map(y=>{const v=sum(cass.years[y].filter(x=>x!=null));const n=cass.years[y].filter(x=>x!=null).length;return{label:y+' ('+n+'m)',value:v,color:v>=0?'#059669':'#e11d48'};});drawBars('cashAnno',{bars});});
   const leg=years.map(y=>({key:y,name:'Bilancio '+y,color:cassaCol(y)}));
   const main=isT?tableCassa(state.co,cass):legendHTML(ck,leg)+`<div id="${ck}"></div>`;
   return `
-  <div class="panel"><div class="panel-head"><div><h3>Flussi di cassa · entrate, uscite e saldo</h3><p>Saldo mensile 2026 (aggiornato con i flussi caricati) e anni precedenti</p></div><div style="display:flex;gap:8px;flex-wrap:wrap">${granHTML()}${segHTML('cassa')}</div></div>${main}<div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Il saldo è entrate − uscite: sopra lo zero il mese chiude in positivo, sotto lo zero in negativo. Ogni mese del 2026 si costruisce <b>sommando gli estratti settimanali</b> caricati: finché mancano settimane è <b>parziale</b>, quando tutte le settimane del mese sono state caricate diventa <b>completo</b> con il dato dell'intero mese.</div></div>
+  <div class="panel"><div class="panel-head"><div><h3>Flussi di cassa · entrate, uscite e saldo</h3><p>Saldo mensile ${yr} (aggiornato con gli estratti caricati) e confronto con gli altri anni</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${cassaYearHTML()}${granHTML()}${segHTML('cassa')}</div></div>${main}<div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Il saldo è entrate − uscite. Scegli l'<b>anno</b> in alto: ogni mese si costruisce <b>sommando gli estratti caricati</b> per quell'anno (parziale finché mancano settimane, completo quando ci sono tutte). Per il 2026, i mesi senza estratto usano il consuntivo di base.</div></div>
   <div class="panel"><div class="panel-head"><div><h3>Saldo di cassa cumulato per anno</h3><p>Somma dei mesi disponibili</p></div></div><div id="cashAnno"></div></div>`;
 }
 function setGran(g){state.cassaGran=g;render();}
 function viewCassaWeek(d){
-  const wk=getCassaWeekly(state.co), obj=wk.obj, co=state.co;
+  const wk=getCassaWeekly(state.co,state.cassaYear||YEAR), obj=wk.obj, co=state.co;
   const saldoMin=obj.saldoMin, entrateMin=obj.entrateMin, open=wk.open;
   const labels=wk.rows.map(r=>'S'+r.num);
   if(wk.hasData){
@@ -786,7 +803,7 @@ function viewCassaWeek(d){
   }
   const objPanel=`
     <div class="panel">
-      <div class="panel-head"><div><h3>Obiettivi settimanali · ${DATA[co].short}</h3><p>Imposta i tre indicatori settimanali. Lo scostamento è calcolato su ogni settimana.</p></div></div>
+      <div class="panel-head"><div><h3>Obiettivi settimanali · ${DATA[co].short}</h3><p>Imposta i tre indicatori settimanali. Lo scostamento è calcolato su ogni settimana.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${cassaYearHTML()}${granHTML()}</div></div>
       <div class="obj-grid">
         <div><label>Entrate minime settimanali</label><div class="inwrap"><input type="number" step="100" value="${entrateMin!=null?entrateMin:''}" onchange="setObjective('entrateMin',this.value)"><span>€</span></div></div>
         <div><label>Saldo minimo al venerdì</label><div class="inwrap"><input type="number" step="100" value="${saldoMin!=null?saldoMin:''}" onchange="setObjective('saldoMin',this.value)"><span>€</span></div></div>
@@ -817,7 +834,7 @@ function viewCassaWeek(d){
   const nSaldoTot=wk.rows.filter(r=>r.saldo!=null).length;
   return objPanel+`
   <div class="panel">
-    <div class="panel-head"><div><h3>Andamento settimanale</h3><p>${wk.rows.length} settimane · entrate ≥ obiettivo in ${nFlussoOk}/${wk.rows.length} · saldo ≥ obiettivo in ${nSaldoOk}/${nSaldoTot||0}</p></div><div>${granHTML()}</div></div>
+    <div class="panel-head"><div><h3>Andamento settimanale</h3><p>${wk.rows.length} settimane · entrate ≥ obiettivo in ${nFlussoOk}/${wk.rows.length} · saldo ≥ obiettivo in ${nSaldoOk}/${nSaldoTot||0}</p></div><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${cassaYearHTML()}${granHTML()}</div></div>
     <div class="grid cols-2" style="margin-top:4px">
       <div><div class="wk-h">Entrate settimanali <span class="sm mut">min ${entrateMin!=null?eur(entrateMin):'—'}</span></div><div id="wkFlusso"></div></div>
       <div><div class="wk-h">Saldo al venerdì <span class="sm mut">min ${saldoMin!=null?eur(saldoMin):'—'}</span></div><div id="wkSaldo"></div></div>
@@ -1401,9 +1418,18 @@ function renderFlussiPreview(){
     const months={}; let n=0;
     for(let i=0;i<12;i++){const iIn=body.querySelector(`input[data-fi="in"][data-mi="${i}"]`).value.trim();const iOut=body.querySelector(`input[data-fi="out"][data-mi="${i}"]`).value.trim();if(iIn===''&&iOut==='')continue;months[i]={in:Math.round((parseFloat(iIn)||0)*100)/100,out:Math.round((parseFloat(iOut)||0)*100)/100};n++;}
     const co=(p.scope&&p.scope.co)||state.co;
-    addUpload(co,'flussi','flussi',p.fname,months,agg.weeks);
+    const wkObj=agg.weeks||{};
+    // la cassa è ricostruita per anno dalle settimane (year-aware); salvo solo le settimane per non
+    // scrivere override mensili senza anno (che altrimenti finirebbero sul 2026). Se non ci sono settimane
+    // (estratto senza date) ripiego sugli importi mensili.
+    const hasWeeks=Object.keys(wkObj).length>0;
+    addUpload(co,'flussi','flussi',p.fname, hasWeeks?{}:months, wkObj);
+    // porta la vista Cassa sull'anno predominante dell'estratto, così l'aggiornamento è subito visibile
+    const yrCount={}; Object.keys(wkObj).forEach(k=>{const bm=wkObj[k].byMonth||{};for(const mk in bm){const y=+mk.split('-')[0];yrCount[y]=(yrCount[y]||0)+((bm[mk].in||0)+(bm[mk].out||0));}});
+    const topYr=Object.keys(yrCount).sort((a,b)=>yrCount[b]-yrCount[a])[0];
+    if(topYr)state.cassaYear=+topYr;
     state.co=co;PARSE.flussi=null;render();
-    setTimeout(()=>{const b=document.getElementById('body-flussi');if(b)b.innerHTML=`<div class="msg ok">Applicati ${n} mesi alla cassa di <b>${DATA[co].short}</b> (e ${Object.keys(agg.weeks).length} settimane). Il file è ora in <b>File caricati</b>.</div>`;},30);
+    setTimeout(()=>{const b=document.getElementById('body-flussi');if(b)b.innerHTML=`<div class="msg ok">Estratto applicato alla cassa di <b>${DATA[co].short}</b> (${Object.keys(wkObj).length} settimane${topYr?`, anno ${topYr}`:''}). Vai in <b>Cassa</b> per vederlo. Il file è in <b>File caricati</b>.</div>`;},30);
   });
 }
 
