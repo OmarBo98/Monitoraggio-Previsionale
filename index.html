@@ -966,13 +966,13 @@ function viewAggiornamento(d,cons){
       ${upCard('buste','Buste paga','→ Costi buste','#d97706','M12 3v18M5 8h14M5 16h14',
         'PDF delle buste paga del mese. Estrae il NETTO di ogni cedolino e somma per il mese indicato.')}
       ${upCard('flussi','Estratto conto','→ Cassa','#0e7490','M3 12h4l3-9 4 18 3-9h4',
-        'Excel/CSV dell\'estratto conto o dei movimenti. Legge la data di ogni movimento, lo assegna al mese e somma i positivi (entrate) e i negativi (uscite).')}
+        'Excel, CSV o PDF dell\'estratto conto. Legge la data valuta di ogni movimento, lo assegna al mese/settimana e somma entrate (avere) e uscite (dare). I PDF con la tabella DATA/VALUTA/MOV.DARE/MOV.AVERE (es. BCC) vengono letti automaticamente.')}
     </div>
     <div class="note" style="margin-top:16px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>I dati caricati restano salvati nel browser e sostituiscono, per i mesi caricati, i valori del previsionale. Un mese senza caricamento usa il consuntivo già presente nell'Excel (primi ${d.actualMonths} mesi) o resta previsionale.</div>
   </div>`;
 }
 function upCard(kind,title,tag,color,icon,desc){
-  const accept = kind==='buste' ? '.pdf' : '.xlsx,.xls,.csv';
+  const accept = kind==='buste' ? '.pdf' : (kind==='flussi'?'.xlsx,.xls,.csv,.pdf':'.xlsx,.xls,.csv');
   const multiple = kind==='buste' ? 'multiple' : '';
   const monthSel = '';
   return `<div class="up-card">
@@ -980,7 +980,7 @@ function upCard(kind,title,tag,color,icon,desc){
     <h4>${title} <span class="srcbadge" style="background:${color}1a;color:${color}">${tag}</span></h4>
     <div class="desc">${desc}</div>
     ${monthSel}
-    <div class="drop" id="drop-${kind}"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0L8 7m4-4l4 4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg><b>Trascina qui o clicca</b><small>${kind==='buste'?'uno o più PDF':'file Excel o CSV'}</small><input type="file" id="file-${kind}" accept="${accept}" ${multiple} style="display:none"></div>
+    <div class="drop" id="drop-${kind}"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0L8 7m4-4l4 4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg><b>Trascina qui o clicca</b><small>${kind==='buste'?'uno o più PDF':(kind==='flussi'?'Excel, CSV o PDF':'file Excel o CSV')}</small><input type="file" id="file-${kind}" accept="${accept}" ${multiple} style="display:none"></div>
     <div id="body-${kind}"></div>
     ${coverHTML(kind==='emesse'?'ricavi':kind==='ricevute'?'costiOper':kind==='buste'?'buste':'flussi')}
   </div>`;
@@ -1079,8 +1079,59 @@ function confirmScopeModal(){
 function proceedWithFiles(kind,files,scope){
   if(kind==='buste')return handleBuste(files,scope);
   const f=files[0], rd=new FileReader();
-  rd.onload=()=>{ try{ if(kind==='flussi')parseFlussi(f.name,new Uint8Array(rd.result),scope); else parseFatture(kind,f.name,new Uint8Array(rd.result),scope); }catch(e){ msgBox(kind,'err','Errore nella lettura del file: '+e.message);} };
+  rd.onload=()=>{ try{
+    const bytes=new Uint8Array(rd.result);
+    if(kind==='flussi'&&isPdfBytes(bytes,f.name)) return parseFlussiPDF(f.name,bytes,scope);
+    if(kind==='flussi')parseFlussi(f.name,bytes,scope); else parseFatture(kind,f.name,bytes,scope);
+  }catch(e){ msgBox(kind,'err','Errore nella lettura del file: '+e.message);} };
   rd.readAsArrayBuffer(f);
+}
+function isPdfBytes(b,name){ return (b&&b.length>4&&b[0]===0x25&&b[1]===0x50&&b[2]===0x44&&b[3]===0x46)||/\.pdf$/i.test(name||''); } // %PDF
+/* ---- estratto conto in PDF (tabella DATA/VALUTA/MOV.DARE/MOV.AVERE/DESCRIZIONE, es. BCC) ---- */
+async function estrattoPdfToRows(bytes){
+  const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+  const movs=[]; let movPages=0;
+  for(let pn=1;pn<=pdf.numPages;pn++){
+    const page=await pdf.getPage(pn);
+    const vp=page.getViewport({scale:1});
+    const tc=await page.getTextContent();
+    const items=tc.items.filter(it=>it.str&&it.str.trim()).map(it=>({s:it.str.trim(),x:it.transform[4],y:vp.height-it.transform[5]}));
+    if(!items.length)continue;
+    const hx={}; let hy=null;
+    items.forEach(it=>{const u=it.s.toUpperCase().replace(/\s/g,'');
+      if(u==='DATA'&&hx.data==null)hx.data=it.x;
+      if(u==='VALUTA'&&hx.valuta==null){hx.valuta=it.x;hy=it.y;}
+      if(u.indexOf('MOV.DARE')>=0&&hx.dare==null)hx.dare=it.x;
+      if(u.indexOf('MOV.AVERE')>=0&&hx.avere==null)hx.avere=it.x;
+      if(u.indexOf('DESCRIZIONE')>=0&&hx.desc==null)hx.desc=it.x;
+    });
+    if(hx.valuta==null||hx.dare==null||hx.avere==null||hx.desc==null)continue; // non è una pagina di movimenti
+    movPages++;
+    const dataX=hx.data!=null?hx.data:hx.valuta-20;
+    const colOf=x=>{ if(x<(dataX+hx.valuta)/2)return 'data'; if(x<hx.dare-6)return 'valuta'; if(x<hx.avere-6)return 'dare'; if(x<hx.desc-6)return 'avere'; return 'desc'; };
+    const body=items.filter(it=>it.y>hy+2).sort((a,b)=>a.y-b.y||a.x-b.x);
+    const rows=[]; let cur=null,cy=null;
+    body.forEach(it=>{ if(cy==null||Math.abs(it.y-cy)>4){cur={data:[],valuta:[],dare:[],avere:[],desc:[]};rows.push(cur);cy=it.y;} cur[colOf(it.x)].push(it.s); });
+    rows.forEach(r=>{
+      const val=r.valuta.join(' ').trim(), dare=r.dare.join(' ').trim(), ave=r.avere.join(' ').trim(), desc=r.desc.join(' ');
+      if(!/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(val))return;      // serve una data valuta
+      if(/SALDO\s+INIZIALE/i.test(desc))return;               // salta il saldo di apertura
+      if(dare===''&&ave==='')return;                          // nessun importo
+      movs.push([val,ave,dare]);                               // [data valuta, entrate(avere), uscite(dare)]
+    });
+  }
+  return {movs,movPages,numPages:pdf.numPages};
+}
+async function parseFlussiPDF(fname,bytes,scope){
+  try{
+    if(typeof pdfjsLib==='undefined'){msgBox('flussi','err','Libreria PDF non caricata. Serve internet al primo avvio.');return;}
+    try{ if(pdfjsLib.GlobalWorkerOptions)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }catch(e){}
+    msgBox('flussi','ok','Lettura del PDF dell\'estratto conto in corso…');
+    const {movs,movPages}=await estrattoPdfToRows(bytes);
+    if(!movs.length){msgBox('flussi','err','Nessun movimento riconosciuto nel PDF. Verifica che sia un estratto conto con la tabella DATA / VALUTA / MOV.DARE / MOV.AVERE / DESCRIZIONE.');return;}
+    PARSE.flussi={fname,headers:['Data valuta','Entrate (avere)','Uscite (dare)'],rows:movs,dateIdx:0,mode:'two',inIdx:1,outIdx:2,saldoIdx:-1,scope:scope||null,isPdf:true,movPages};
+    renderFlussiPreview();
+  }catch(e){ msgBox('flussi','err','Errore nella lettura del PDF: '+e.message); }
 }
 function rowInScope(dt,sc){
   if(!sc||sc.mode!=='manual')return true;
