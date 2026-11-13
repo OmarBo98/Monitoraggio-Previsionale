@@ -308,6 +308,7 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
       <button data-view="costi">Costi</button>
       <button data-view="cassa">Cassa</button>
       <button data-view="confronto">Confronto anni</button>
+      <button data-view="prev27">Prev. 2027</button>
       <button data-view="accantonamenti">Accantonamenti</button>
       <button data-view="aggiornamento">Aggiornamento <span class="badge" id="tabBadge" style="display:none"></span></button>
       <button data-view="file">File caricati <span class="badge" id="fileBadge" style="display:none"></span></button>
@@ -324,6 +325,8 @@ const MESI=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','D
 const MESI_FULL=['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 const YEAR_COLORS={'2025':'#2563eb','2024':'#9333ea','2023':'#dc2626','2022':'#0891b2','2021':'#db2777','2020':'#4338ca','2019':'#64748b'};
 const C_PREV='#059669', C_CONS='#d97706';
+/* --- Previsionale 2027 (fatturato reale 2024-2026 + libro paga) --- */
+DATA.sanitech.prev27={"ricavi": [17541, 14716, 14513, 27523, 24336, 37841, 34433, 32057, 26399, 27847, 23964, 23644], "costiMain": [5554, 12168, 4944, 15083, 10601, 7184, 10365, 12847, 11151, 12992, 10390, 16993], "costiBuste": [7139, 7659, 7825, 9120, 7880, 7795, 8388, 7810, 8410, 7049, 6688, 7042]};DATA.nsa.prev27={"ricavi": [16718, 11243, 10703, 48663, 32040, 25713, 39546, 35969, 26487, 30212, 16570, 21330], "costiMain": [10046, 6075, 7492, 10792, 11916, 18166, 14396, 7219, 10668, 10274, 10232, 17344], "costiBuste": [8656, 8815, 9849, 10593, 9376, 8969, 10009, 9839, 12004, 12343, 11872, 11038]};
 const YEAR=2026;
 const eur=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n);
 const pct=n=>(n>=0?'+':'')+new Intl.NumberFormat('it-IT',{maximumFractionDigits:1}).format(n*100)+'%';
@@ -696,6 +699,7 @@ function render(){
   else if(state.view==='costi')V.innerHTML=viewCosti(d,cons);
   else if(state.view==='cassa')V.innerHTML=viewCassa(d);
   else if(state.view==='confronto')V.innerHTML=viewConfronto(d);
+  else if(state.view==='prev27')V.innerHTML=viewPrev27(d);
   else if(state.view==='accantonamenti')V.innerHTML=viewAccantonamenti(d);
   else if(state.view==='aggiornamento')V.innerHTML=viewAggiornamento(d,cons);
   else V.innerHTML=viewFileCaricati(d);
@@ -885,6 +889,36 @@ function yearMatrix(years,favorHigh){
     return `<td class="r sm ${cls(y)}"><span class="${good?'up':'down'}" style="font-weight:600">${pct(dv)}</span></td>`;
   }).join('')+'</tr>';
   return `<div class="tscroll"><table class="dtable matrix"><thead><tr>${head}</tr></thead><tbody>${body}${totRow}${medRow}${varRow}</tbody></table></div>`;
+}
+function viewPrev27(d){
+  const p=d.prev27; if(!p)return '<div class="panel"><div class="empty"><h3>Previsionale 2027 non disponibile</h3></div></div>';
+  const ric=p.ricavi, cm=p.costiMain, cb=p.costiBuste;
+  const tot=cm.map((x,i)=>x+cb[i]), ut=ric.map((x,i)=>x-tot[i]);
+  const R=sum(ric),CM=sum(cm),CB=sum(cb),C=sum(tot),U=R-C,MG=R?100*U/R:0;
+  const r25=sum(d.ricavi['2025']||[]), dr=r25?(R-r25)/r25:null;
+  const K=(cls,lab,val,sub)=>`<div class="kpi ${cls}"><div class="bar"></div><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  let rows='';
+  for(let i=0;i<12;i++){const u=ut[i];
+    rows+=`<tr><td>${MESI_FULL[i]}</td><td class="r">${eur(ric[i])}</td><td class="r">${eur(cm[i])}</td><td class="r">${eur(cb[i])}</td><td class="r">${eur(tot[i])}</td><td class="r"><span class="${u>=0?'up':'down'}" style="font-weight:600">${eur(u)}</span></td></tr>`;}
+  rows+=`<tr class="tot"><td>Totale 2027</td><td class="r">${eur(R)}</td><td class="r">${eur(CM)}</td><td class="r">${eur(CB)}</td><td class="r">${eur(C)}</td><td class="r"><span class="${U>=0?'up':'down'}">${eur(U)}</span></td></tr>`;
+  q(()=>drawLine('p27ric',{series:[
+    {key:'2027',name:'Ricavi 2027 (prev.)',color:C_PREV,values:ric,width:2.6,markers:true},
+    {key:'2025',name:'Ricavi 2025',color:YEAR_COLORS['2025'],values:d.ricavi['2025'],width:1.6,dim:true},
+    {key:'2026p',name:'Ricavi 2026 prev.',color:C_CONS,values:d.ricavi.prev26,width:1.6,dim:true}
+  ],baseZero:true}));
+  q(()=>drawBars('p27ut',{bars:MESI.map((m,i)=>({label:m,value:ut[i],color:ut[i]>=0?'#059669':'#e11d48'}))}));
+  return `
+  <div class="kpis">
+    ${K('','Ricavi 2027 (attivo)',eur(R),dr==null?'<span class="pill">previsionale</span>':`<span class="pill ${dr<0?'neg':''}">${pct(dr)} vs 2025</span>`)}
+    ${K('ink','Costi 2027 (passivo)',eur(C),`<span class="mut">oper. ${eur(CM)} + buste ${eur(CB)}</span>`)}
+    ${K(U>=0?'':'rose','Utile 2027',eur(U),`<span class="pill ${U>=0?'':'neg'}">margine ${MG.toFixed(1)}%</span>`)}
+    ${K('amber','Media mensile ricavi',eur(R/12),`<span class="mut">costi ${eur(C/12)}/mese</span>`)}
+  </div>
+  <div class="panel"><div class="panel-head"><div><h3>Previsionale 2027 · dettaglio mensile</h3><p>Fatturato attivo (ricavi) e passivo (costi) stimato mese per mese · ${DATA[state.co].short}</p></div></div>
+    <div class="tscroll"><table class="dtable"><thead><tr><th>Mese</th><th class="r">Ricavi</th><th class="r">Costi operativi</th><th class="r">Buste paga</th><th class="r">Costi totali</th><th class="r">Utile</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+  <div class="panel"><div class="panel-head"><div><h3>Ricavi 2027 vs 2025 e previsionale 2026</h3></div></div><div id="p27ric"></div></div>
+  <div class="panel"><div class="panel-head"><div><h3>Utile mensile stimato 2027</h3></div></div><div id="p27ut"></div></div>
+  <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Base: ultimi 3 anni (2024–2026) per ricavi e costi operativi, con il 2026 da fatture reali gen–ott e stima nov–dic; <b>buste paga</b> dal libro paga reale 2025–2026. Anni recenti pesati di più, picchi straordinari esclusi, trend contenuto (−5%/+8%). Importi netti. È la baseline di budget: confronta qui i consuntivi 2027 man mano.</div>`;
 }
 function viewConfronto(d){
   const cons=getConsuntivo(state.co), am=cons.actualMonths;
