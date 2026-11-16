@@ -286,7 +286,7 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
   <div class="topbar-in">
     <div class="brand">
       <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 15l5-5 4 3 7-8"/></svg></div>
-      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-13</span></span></div>
+      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16</span></span></div>
     </div>
     <div class="spacer"></div>
     <div class="topbtns">
@@ -837,9 +837,9 @@ function viewCassaWeek(d){
   if(!wk.hasData){
     return objPanel+`<div class="panel"><div class="empty"><div class="ic" style="background:var(--ink-100)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-400)" stroke-width="1.8" style="width:22px;height:22px"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div><h3>Nessun dato settimanale</h3><p>Carica un estratto conto (anche di una sola settimana) dalla scheda Aggiornamento: i movimenti verranno raggruppati per settimana e vedrai qui l'andamento e lo scostamento dagli obiettivi.</p><button class="btn btn-primary" onclick="goView('aggiornamento')">Vai in Aggiornamento →</button></div></div>`;
   }
-  // table rows
+  // table rows — elenco dalla settimana più recente alla meno recente (il saldo resta calcolato in ordine cronologico)
   let trs='';
-  wk.rows.forEach(r=>{
+  wk.rows.slice().reverse().forEach(r=>{
     const dF=(entrateMin!=null)?r.in-entrateMin:null;
     const dS=(saldoMin!=null&&r.saldo!=null)?r.saldo-saldoMin:null;
     trs+=`<tr>
