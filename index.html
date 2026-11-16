@@ -286,7 +286,7 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
   <div class="topbar-in">
     <div class="brand">
       <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 15l5-5 4 3 7-8"/></svg></div>
-      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16f</span></span></div>
+      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16g</span></span></div>
     </div>
     <div class="spacer"></div>
     <div class="topbtns">
@@ -1710,24 +1710,36 @@ async function handleBuste(files,scope){
   PARSE.buste={files:res,scope:scope||null};
   renderBustePreview();
 }
+// Lettura del NETTO per posizione (logica validata sui cedolini reali, giu 2026):
+// il valore sta a DESTRA della scritta "NETTO" (dipendenti) o APPENA SOTTO ("NETTO CORRISPOSTO"),
+// MAI a sinistra (quello è l'arrotondamento). Una busta per pagina: si sommano i netti delle pagine.
 async function extractNetto(bytes){
   const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+  const CUR=/^-?\d{1,3}(?:[.\s]\d{3})*,\d{2}$/;
   let total=0;
   for(let pn=1;pn<=pdf.numPages;pn++){
     const page=await pdf.getPage(pn);
     const tc=await page.getTextContent();
-    const items=tc.items.map(it=>(it.str||'').trim()).filter(s=>s.length);
-    // indices of items mentioning NETTO; use the last one (usually "netto a pagare")
-    const idxs=[]; items.forEach((s,i)=>{if(/netto/i.test(s))idxs.push(i);});
-    let nettoVal=0;
-    if(idxs.length){
-      const start=idxs[idxs.length-1];
-      // scan the netto item itself and a small forward window, collect euro amounts, take first >= 50
-      for(let j=start;j<Math.min(items.length,start+10)&&!nettoVal;j++){
-        for(const a of amountsIn(items[j])){ if(Math.abs(a)>=50){ nettoVal=a; break; } }
+    const items=tc.items.filter(it=>it.str&&it.str.trim()).map(it=>({t:it.str.trim(),x:it.transform[4],y:it.transform[5]}));
+    const labels=items.filter(it=>/^netto/i.test(it.t)); // NETTO, NETTO A PAGARE, NETTO CORRISPOSTO, NETTO IN BUSTA
+    let best=null,bestD=Infinity;
+    for(const lbl of labels){
+      for(const w of items){
+        if(!CUR.test(w.t))continue;
+        const v=parseAmount(w.t); if(v==null||Math.abs(v)<50)continue;
+        const dx=w.x-lbl.x, dyTop=lbl.y-w.y;          // dx>=0 = a destra · dyTop>0 = sotto · a sinistra escluso
+        if(dx>=-3&&dx<=240&&dyTop>=-4&&dyTop<=30){
+          const d=dx*dx+dyTop*dyTop; if(d<bestD){bestD=d;best=v;}
+        }
       }
     }
-    total+=nettoVal;
+    // fallback: se la regola per posizione non trova nulla, prendi il primo importo >=50 dopo l'ultima "NETTO"
+    if(best==null){
+      const flat=items.map(it=>it.t); const idxs=[]; flat.forEach((s,i)=>{if(/netto/i.test(s))idxs.push(i);});
+      if(idxs.length){const start=idxs[idxs.length-1];
+        for(let j=start;j<Math.min(flat.length,start+12)&&best==null;j++){for(const a of amountsIn(flat[j])){if(Math.abs(a)>=50){best=a;break;}}}}
+    }
+    total+=best||0;
   }
   return Math.round(total*100)/100;
 }
