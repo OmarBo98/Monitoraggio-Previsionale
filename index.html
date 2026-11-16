@@ -286,7 +286,7 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
   <div class="topbar-in">
     <div class="brand">
       <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 15l5-5 4 3 7-8"/></svg></div>
-      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16c</span></span></div>
+      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16d</span></span></div>
     </div>
     <div class="spacer"></div>
     <div class="topbtns">
@@ -985,7 +985,7 @@ const SCAD={
    ['Assicurazioni (polizza Groupama)','24 del mese','305 €','1%','Fissa'],
    ['Utenze, telefonia, spese banca','5 del mese e sparse','147 €','<1%','Fissa']
   ],
-  totUscite:'32.632 €',
+  totUscite:'32.632 €',minN:5300,pareggioN:7550,targetN:8700,
   notaF24:'Il F24 è la voce più insidiosa: la media è 5.915 €/mese ma i singoli mesi vanno da 1.848 € (febbraio) a 14.920 € (agosto). Agosto, novembre e dicembre sono i tre mesi pesanti — vanno preparati con settimane di anticipo, non subiti. La rateazione con Agenzia Entrate-Riscossione (273,52 € intorno al 4, più 697,76 € ogni ~4 mesi) è debito fiscale già in piano di rientro: va trattato come una rata fissa.',
   incassi:['6.420 €','5.517 €','3.626 €','8.100 €','403 €','18.783 €'],
   oggi:'6.544 €',
@@ -1017,7 +1017,7 @@ const SCAD={
    ['Commercialista Studio Farruggio','25, ogni 2 mesi (641 €)','267 €','1%','Fissa'],
    ['Spese bancarie, POS, prelievi','sparse','428 €','2%','Variabile']
   ],
-  totUscite:'21.755 €',
+  totUscite:'21.755 €',minN:3470,pareggioN:5030,targetN:5800,
   notaF24:'Anche qui il F24 detta il ritmo: novembre 2025 è costato 16.192 € e maggio 2026 11.071 €, contro mesi da 1.036 €. Sono i due mesi in cui Sanitech va sotto se non ha accantonato prima.',
   incassi:['5.087 €','4.697 €','2.459 €','6.639 €','957 €','13.132 €'],
   oggi:'5.185 €',
@@ -1029,14 +1029,51 @@ const SCAD={
   cuscinetto:'12.500 €',cuscinettoNote:'Il mese peggiore (maggio 2026: 34.384 €) costa 12.600 € più della media: senza riserva quel mese si chiude in rosso anche incassando normalmente.'
  }
 };
+// --- calcolo dal vivo dalle settimane reali caricate (STORE[co].weeks) ---
+function scadMesLabel(mk){const p=mk.split('-');return MESI_AB[+p[1]]+' '+p[0];}
+function scadLive(co){
+  const wk=STORE[co]&&STORE[co].weeks||{}; const keys=Object.keys(wk).sort();
+  if(!keys.length)return null;
+  const weeks=keys.map(k=>{const p=k.split('-W');return {k,start:isoWeekStart(+p[0],+p[1]),in:wk[k].in||0,out:wk[k].out||0};});
+  const last=weeks[weeks.length-1].start;
+  const cutoff=new Date(Date.UTC(last.getUTCFullYear(),last.getUTCMonth()-11,1));
+  let win=weeks.filter(w=>w.start>=cutoff); if(win.length<4)win=weeks;
+  const months=new Set(); win.forEach(w=>{const bm=wk[w.k].byMonth; if(bm)Object.keys(bm).forEach(m=>months.add(m)); else months.add(w.start.getUTCFullYear()+'-'+w.start.getUTCMonth());});
+  const nMonths=months.size||1, n=win.length, WPM=4.333;
+  const sum=a=>a.reduce((x,y)=>x+y,0);
+  const inArr=win.map(w=>w.in), outArr=win.map(w=>w.out);
+  const entSett=sum(inArr)/n, useSett=sum(outArr)/n;
+  const st=a=>{const s=[...a].sort((x,y)=>x-y),m=s.length,q=p=>{const i=(m-1)*p,lo=Math.floor(i),hi=Math.ceil(i);return s[lo]+(s[hi]-s[lo])*(i-lo);};return {media:sum(a)/m,med:q(.5),q1:q(.25),q3:q(.75),min:s[0],max:s[m-1]};};
+  const f=win[0].start, l=win[n-1].start;
+  const period=MESI_AB[f.getUTCMonth()]+' '+f.getUTCFullYear()+' – '+MESI_AB[l.getUTCMonth()]+' '+l.getUTCFullYear();
+  return {nWeeks:n,nMonths,period,
+    entSett,useSett,saldoSett:entSett-useSett,entMese:entSett*WPM,useMese:useSett*WPM,
+    saldoMese:(entSett-useSett)*WPM,saldoAnno:(entSett-useSett)*WPM*12,full:nMonths>=11,inStat:st(inArr)};
+}
 function viewScad(d){
   const co=state.co, s=SCAD[co], ic=s.incassi;
+  const L=scadLive(co), Ln=scadLive('nsa'), Ls=scadLive('sanitech');
+  const e0=n=>eur(Math.round(n));
+  const liveBadge=l=>l?`<span class="pill" title="Calcolato dagli estratti che hai caricato">dal vivo · ${l.nWeeks} sett.</span>`:`<span class="pill mut">analisi di riferimento</span>`;
   const tipoPill=t=>t==='Fissa'?'<span class="pill mut">Fissa</span>':'<span class="pill">Variabile</span>';
-  const kpis=`<div class="kpis">
+  const kpis = L ? `<div class="kpis">
+    <div class="kpi ink"><div class="bar"></div><div class="lab">Uscite</div><div class="val">${e0(L.useMese)}</div><div class="sub"><span class="mut">al mese · ${e0(L.useSett)}/sett.</span></div></div>
+    <div class="kpi"><div class="bar"></div><div class="lab">Entrate</div><div class="val">${e0(L.entMese)}</div><div class="sub"><span class="mut">al mese · ${e0(L.entSett)}/sett.</span></div></div>
+    <div class="kpi ${L.saldoMese<0?'rose':''}"><div class="bar"></div><div class="lab">Saldo</div><div class="val">${e0(L.saldoMese)}</div><div class="sub"><span class="pill ${L.saldoMese<0?'neg':''}">${e0(L.saldoAnno)} ${L.full?"nell'anno":'proiezione annua'}</span></div></div>
+    <div class="kpi amber"><div class="bar"></div><div class="lab">Quota fissa</div><div class="val">${s.quotaFissa}</div><div class="sub"><span class="mut">${s.quotaPct} delle uscite · da analisi</span></div></div>
+  </div>` : `<div class="kpis">
     <div class="kpi ink"><div class="bar"></div><div class="lab">Uscite</div><div class="val">${s.uscite}</div><div class="sub"><span class="mut">al mese · ${s.usciteSett}/sett.</span></div></div>
     <div class="kpi"><div class="bar"></div><div class="lab">Entrate</div><div class="val">${s.entrate}</div><div class="sub"><span class="mut">al mese · ${s.entrateSett}/sett.</span></div></div>
     <div class="kpi ${s.saldoNeg?'rose':''}"><div class="bar"></div><div class="lab">Saldo</div><div class="val">${s.saldoMese}</div><div class="sub"><span class="pill ${s.saldoNeg?'neg':''}">${s.saldoAnno} nell'anno</span></div></div>
     <div class="kpi amber"><div class="bar"></div><div class="lab">Quota fissa</div><div class="val">${s.quotaFissa}</div><div class="sub"><span class="mut">${s.quotaPct} delle uscite · non comprimibile</span></div></div>
+  </div>`;
+  const ovCard=(key,l,fbAnno,fbMese,fbSett,desc)=>{const v=l?l.saldoAnno:fbAnno;const neg=v<0;const act=co===key;
+    return `<div style="border:1px solid ${act?(neg?'var(--rose)':'var(--emerald-400)'):'var(--line)'};border-radius:12px;padding:14px;background:var(--card)">
+      <div style="font-weight:700;color:var(--ink-900);margin-bottom:4px">${DATA[key].short} — ${neg?'deficit':'avanzo'} di ${e0(Math.abs(v))} ${l?('('+l.period+(l.full?'':', proiezione annua')+')'):'in 12 mesi'}</div>
+      <div style="font-size:12.5px;color:var(--ink-600);line-height:1.5">${l?(e0(l.saldoMese)+'/mese · '+e0(l.saldoSett)+'/sett.'):(fbMese+', '+fbSett)}. ${desc}</div></div>`;};
+  const overview=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+    ${ovCard('nsa',Ln,-51317,'−4.276 €/mese','−987 €/sett','Quando è in deficit, il livello di fatturato incassato è sotto quello dei costi: non è un problema di ritardi negli incassi.')}
+    ${ovCard('sanitech',Ls,8529,'+711 €/mese','+164 €/sett','Senza margine ampio basta un mese storto per andare sotto: serve un cuscinetto, non per forza più fatturato.')}
   </div>`;
   const weekCards=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px">${s.weeks.map(w=>`
     <div style="border:1px solid ${w.peak?'var(--amber)':'var(--line)'};border-radius:12px;padding:14px;background:var(--card)">
@@ -1055,7 +1092,9 @@ function viewScad(d){
       <div style="font-family:var(--mono);font-weight:700;font-size:20px;color:var(--ink-900);margin:4px 0 6px">${t.val}</div>
       <div style="font-size:12px;color:var(--ink-600);line-height:1.5">${t.note}</div>
     </div>`).join('')}</div>`;
-  const incRow=(nome,a)=>`<tr><td>${nome}</td><td class="r">${a[0]}</td><td class="r">${a[1]}</td><td class="r">${a[2]}</td><td class="r">${a[3]}</td><td class="r">${a[4]}</td><td class="r">${a[5]}</td></tr>`;
+  const incRow=(nome,l,a)=> l
+    ? `<tr><td>${nome}</td><td class="r">${e0(l.inStat.media)}</td><td class="r">${e0(l.inStat.med)}</td><td class="r">${e0(l.inStat.q1)}</td><td class="r">${e0(l.inStat.q3)}</td><td class="r">${e0(l.inStat.min)}</td><td class="r">${e0(l.inStat.max)}</td></tr>`
+    : `<tr><td>${nome}</td><td class="r">${a[0]}</td><td class="r">${a[1]}</td><td class="r">${a[2]}</td><td class="r">${a[3]}</td><td class="r">${a[4]}</td><td class="r">${a[5]}</td></tr>`;
   const rule=[
    ['01','Ogni lunedì, guarda una cifra sola','Quanto è entrato la settimana scorsa. Se è sotto il <b>pareggio</b> (7.550 € NSA / 5.030 € Sanitech), quella settimana ha lasciato un buco da recuperare nelle successive. Segnalo, non dimenticarlo.'],
    ['02','Nelle settimane 1 e 2 non spendi: accantoni','Sono le settimane leggere (NSA 5.161 € e 3.551 €; Sanitech 2.831 € e 3.251 €) mentre gli incassi continuano a entrare. Quello che avanza <b>non è liquidità disponibile</b>: è la provvista per il 16. Se lo spendi in fornitori, la terza settimana la paghi in fido.'],
@@ -1068,26 +1107,26 @@ function viewScad(d){
       <div style="font-weight:600;color:var(--ink-900);margin:4px 0 6px">${r[1]}</div>
       <div style="font-size:12.5px;color:var(--ink-600);line-height:1.5">${r[2]}</div>
     </div>`).join('')}</div>`;
+  const oggiVal=L?e0(L.entSett):s.oggi;
+  const gap=L?(s.pareggioN-L.entSett):null;
+  const gapTxt=gap==null?'':(gap>0?` — mancano ${e0(gap)}/sett. al pareggio`:` — già ${e0(-gap)}/sett. sopra il pareggio`);
   return `
-  <div class="panel"><div class="panel-head"><div><h3>Scadenziario del flusso di cassa · ${DATA[co].name}</h3><p>Quando escono i soldi, per cosa, e quanto devi incassare ogni settimana per arrivare a fine mese senza affanni. Costruito sui movimenti bancari reali degli ultimi 12 mesi.</p></div></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
-      <div style="border:1px solid ${co==='nsa'?'var(--rose)':'var(--line)'};border-radius:12px;padding:14px;background:var(--card)"><div style="font-weight:700;color:var(--ink-900);margin-bottom:4px">NSA — deficit strutturale di 51.317 € in 12 mesi</div><div style="font-size:12.5px;color:var(--ink-600);line-height:1.5">−4.276 €/mese, −987 €/sett. Non è un problema di date o ritardi negli incassi: il livello di fatturato incassato è sotto il livello dei costi.</div></div>
-      <div style="border:1px solid ${co==='sanitech'?'var(--emerald-400)':'var(--line)'};border-radius:12px;padding:14px;background:var(--card)"><div style="font-weight:700;color:var(--ink-900);margin-bottom:4px">Sanitech — in pareggio, +8.529 € in 12 mesi</div><div style="font-size:12.5px;color:var(--ink-600);line-height:1.5">+711 €/mese. Regge, ma senza margine: basta un mese storto per andare sotto. Serve un cuscinetto, non altro fatturato.</div></div>
-    </div>
+  <div class="panel"><div class="panel-head"><div><h3>Scadenziario del flusso di cassa · ${DATA[co].name}</h3><p>Quando escono i soldi, per cosa, e quanto devi incassare ogni settimana per arrivare a fine mese senza affanni. Riepilogo del mese e incassi calcolati dagli estratti caricati; ripartizione settimanale e voci ricorrenti dall'analisi dei movimenti.</p></div></div>
+    ${overview}
   </div>
-  <div class="panel"><div class="panel-head"><div><h3>${DATA[co].short} · il mese in numeri</h3><p>${s.period}</p></div></div>${kpis}</div>
+  <div class="panel"><div class="panel-head"><div><h3>${DATA[co].short} · il mese in numeri</h3><p>${L?('Dagli estratti caricati · '+L.period+' · '+L.nWeeks+' settimane'):(s.period+' · analisi di riferimento')}</p></div><div>${liveBadge(L)}</div></div>${kpis}</div>
   <div class="panel"><div class="panel-head"><div><h3>Come si distribuiscono le uscite dentro il mese</h3><p>${s.intro}</p></div></div>${weekCards}</div>
   <div class="panel"><div class="panel-head"><div><h3>Le uscite ricorrenti, in ordine di peso</h3></div></div>${ricTable}
     <div class="note" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>${s.notaF24}</div></div>
-  <div class="panel"><div class="panel-head"><div><h3>Quanto entra oggi, settimana per settimana</h3><p>Per programmare la cassa ragiona sulla <b>mediana</b> (la settimana tipica), non sulla media, tirata su da poche settimane grasse.</p></div></div>
+  <div class="panel"><div class="panel-head"><div><h3>Quanto entra oggi, settimana per settimana</h3><p>Per programmare la cassa ragiona sulla <b>mediana</b> (la settimana tipica), non sulla media, tirata su da poche settimane grasse.</p></div><div>${liveBadge(Ln||Ls)}</div></div>
     <div class="tscroll"><table class="dtable"><thead><tr><th>Società</th><th class="r">Media/sett.</th><th class="r">Mediana/sett.</th><th class="r">1 su 4 sotto</th><th class="r">1 su 4 sopra</th><th class="r">Peggiore</th><th class="r">Migliore</th></tr></thead><tbody>
-    ${incRow('NSA Srl',SCAD.nsa.incassi)}${incRow('Sanitech Srl',SCAD.sanitech.incassi)}
+    ${incRow('NSA Srl',Ln,SCAD.nsa.incassi)}${incRow('Sanitech Srl',Ls,SCAD.sanitech.incassi)}
     </tbody></table></div>
     <div class="note" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Gli incassi arrivano quasi tutti da lunedì a venerdì, con un picco il martedì (NSA 29%) e il mercoledì (Sanitech 26%). Nessuna concentrazione a fine mese: gli incassi sono piatti, le uscite no. È da questo disallineamento che nasce la tensione di cassa.</div></div>
-  <div class="panel"><div class="panel-head"><div><h3>Quanto devi incassare a settimana · ${DATA[co].short}</h3><p>Oggi incassa ${s.oggi}/sett. Tre soglie: sopravvivenza, pareggio, e il livello a cui smetti di guardare il saldo ogni mattina.</p></div></div>${soglie}
+  <div class="panel"><div class="panel-head"><div><h3>Quanto devi incassare a settimana · ${DATA[co].short}</h3><p>Oggi incassa <b>${oggiVal}/sett.</b>${gapTxt}. Le tre soglie (sopravvivenza, pareggio, target) vengono dall'analisi dei costi fissi; il valore «oggi» è calcolato dagli estratti.</p></div><div>${liveBadge(L)}</div></div>${soglie}
     <div class="note" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><b>Cuscinetto in banca consigliato: ${s.cuscinetto}.</b> ${s.cuscinettoNote}</div></div>
   <div class="panel"><div class="panel-head"><div><h3>La regola delle quattro settimane</h3><p>Gli incassi arrivano piatti e le uscite a ondate. Queste quattro mosse risolvono il disallineamento senza toccare il fatturato.</p></div></div>${ruleCards}</div>
-  <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><b>Fonte.</b> Estratto conto NSA (ago 2025 – ago 2026, 1.558 movimenti) ed estratti entrate/uscite Sanitech (giu 2025 – lug 2026, 1.344 movimenti); 12 mesi pieni per società. Ogni movimento è classificato leggendo la causale bancaria. Le voci «fisse» escono comunque, anche a fatturato zero; le «variabili» sono i bonifici fornitori. Medie settimanali su 4,333 settimane/mese. Dati di cassa (banca), non di competenza: governano la liquidità, non sostituiscono il bilancio.</div>`;
+  <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><b>Fonte.</b> Estratto conto NSA (ago 2025 – ago 2026, 1.558 movimenti) ed estratti entrate/uscite Sanitech (giu 2025 – lug 2026, 1.344 movimenti); 12 mesi pieni per società. Ogni movimento è classificato leggendo la causale bancaria. Le voci «fisse» escono comunque, anche a fatturato zero; le «variabili» sono i bonifici fornitori. Medie settimanali su 4,333 settimane/mese. Dati di cassa (banca), non di competenza: governano la liquidità, non sostituiscono il bilancio. <b>Riepilogo del mese, incassi e «oggi incassa» sono calcolati dal vivo dalle settimane che carichi</b> (finestra ultimi ~12 mesi); ripartizione settimanale, voci ricorrenti e soglie restano dall'analisi delle causali e si aggiornano a mano.</div>`;
 }
 function viewConfronto(d){
   const cons=getConsuntivo(state.co), am=cons.actualMonths;
