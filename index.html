@@ -286,7 +286,7 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
   <div class="topbar-in">
     <div class="brand">
       <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 15l5-5 4 3 7-8"/></svg></div>
-      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16g</span></span></div>
+      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16h</span></span></div>
     </div>
     <div class="spacer"></div>
     <div class="topbtns">
@@ -332,7 +332,7 @@ const C_PREV='#059669', C_CONS='#d97706';
 /* --- Previsionale 2027 (fatturato reale 2024-2026 + libro paga) --- */
 DATA.sanitech.prev27={"ricavi": [17541, 14716, 14513, 27523, 24336, 37841, 34433, 32057, 26399, 27847, 23964, 23644], "costiMain": [5554, 12168, 4944, 15083, 10601, 7184, 10365, 12847, 11151, 12992, 10390, 16993], "costiBuste": [7139, 7659, 7825, 9120, 7880, 7795, 8388, 7810, 8410, 7049, 6688, 7042]};DATA.nsa.prev27={"ricavi": [16718, 11243, 10703, 48663, 32040, 25713, 39546, 35969, 26487, 30212, 16570, 21330], "costiMain": [10046, 6075, 7492, 10792, 11916, 18166, 14396, 7219, 10668, 10274, 10232, 17344], "costiBuste": [8656, 8815, 9849, 10593, 9376, 8969, 10009, 9839, 12004, 12343, 11872, 11038]};
 const YEAR=2026;
-const eur=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n);
+const eur=n=>new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',maximumFractionDigits:0,useGrouping:'always'}).format(n);
 const pct=n=>(n>=0?'+':'')+new Intl.NumberFormat('it-IT',{maximumFractionDigits:1}).format(n*100)+'%';
 const sum=a=>a.reduce((s,x)=>s+(x==null?0:x),0);
 const sumN=(a,n)=>a.slice(0,n).reduce((s,x)=>s+(x==null?0:x),0);
@@ -680,18 +680,21 @@ function costiSeries(d,cons){
 }
 
 /* ---- tables: previsto vs reale ---- */
-function prevRealTable(prev,real,favorHigh,unit){
-  let rows='',tp=0,tr=0,any=false,prog=0;
+function prevRealTable(prev,real,favorHigh,unit,buste){
+  let rows='',tp=0,tr=0,any=false,prog=0,tb=0;
   for(let i=0;i<12;i++){
     const p=prev[i],r=real[i],has=r!=null;
     let sc='—';
     if(has&&p!=null){const dv=r-p,good=favorHigh?dv>=0:dv<=0,pc=p?((dv/p>=0?'+':'')+(dv/p*100).toFixed(1)+'%'):'';sc=`<span class="${good?'up':'down'}" style="font-weight:600">${dv>=0?'+':''}${eur(dv)}</span> <span class="sm">${pc}</span>`;}
-    if(has){tr+=r;tp+=(p||0);any=true;}
+    const bv=(buste&&buste[i]!=null)?buste[i]:0;
+    if(has){tr+=r;tp+=(p||0);tb+=bv;any=true;}
     const eff=has?r:(p!=null?p:0); prog+=eff;
-    rows+=`<tr class="${has?'has':''}"><td>${MESI_FULL[i]}</td><td class="r">${p!=null?eur(p):'—'}</td><td class="r">${has?eur(r):'—'}</td><td class="r">${sc}</td><td class="r prog" title="${has?'reale':'previsto'}">${eur(prog)}</td></tr>`;
+    const realeCell=has?(buste?`${eur(r)}<div class="sm">di cui ${eur(bv)} buste</div>`:eur(r)):'—';
+    rows+=`<tr class="${has?'has':''}"><td>${MESI_FULL[i]}</td><td class="r">${p!=null?eur(p):'—'}</td><td class="r">${realeCell}</td><td class="r">${sc}</td><td class="r prog" title="${has?'reale':'previsto'}">${eur(prog)}</td></tr>`;
   }
   const dv=tr-tp,good=favorHigh?dv>=0:dv<=0;
-  const tot=any?`<tr class="tot"><td>Totale mesi reali</td><td class="r">${eur(tp)}</td><td class="r">${eur(tr)}</td><td class="r"><span class="${good?'up':'down'}">${dv>=0?'+':''}${eur(dv)}</span></td><td class="r prog">${eur(prog)}</td></tr>`:'';
+  const totReale=buste?`${eur(tr)}<div class="sm">di cui ${eur(tb)} buste</div>`:eur(tr);
+  const tot=any?`<tr class="tot"><td>Totale mesi reali</td><td class="r">${eur(tp)}</td><td class="r">${totReale}</td><td class="r"><span class="${good?'up':'down'}">${dv>=0?'+':''}${eur(dv)}</span></td><td class="r prog">${eur(prog)}</td></tr>`:'';
   return `<table class="dtable"><thead><tr><th>Mese</th><th class="r">Previsto</th><th class="r">Reale</th><th class="r">Scostamento</th><th class="r prog">Progressivo</th></tr></thead><tbody>${rows}${tot}</tbody></table>
   <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><b>Progressivo</b>: somma cumulata mese per mese usando il dato <b>reale</b> dove disponibile e la <b>previsione</b> per i mesi futuri. L'ultima riga è quindi la proiezione a fine anno (consuntivo finora + previsto per il resto).</div>`;
 }
@@ -816,7 +819,7 @@ function viewCosti(d,cons){
   q(()=>{const bars=d.costYears.map(y=>({label:y,value:sum(d.costiTot[y]),color:YEAR_COLORS[y]}));bars.push({label:'2026',value:sum(d.costiTot.prev26),color:'#1f2937',tag:'previsto'});drawBars('costAnno',{bars});});
   q(()=>drawStack('costStack',{a:d.costiMain.prev26,b:d.costiBuste.prev26,ca:'#1d4ed8',cb:'#f59e0b'}));
   const oper=sum(d.costiMain.prev26),buste=sum(d.costiBuste.prev26),tot=oper+buste;
-  const main=isT?prevRealTable(d.costiTot.prev26,cons.costiTot,false):legendHTML(ck,costiSeries(d,cons))+`<div id="${ck}"></div>`;
+  const main=isT?prevRealTable(d.costiTot.prev26,cons.costiTot,false,null,cons.costiBuste):legendHTML(ck,costiSeries(d,cons))+`<div id="${ck}"></div>`;
   return `
   <div class="panel"><div class="panel-head"><div><h3>Costi totali mese per mese</h3><p>Operativi + buste paga · previsto 2026 e consuntivo reale</p></div>${segHTML('costi')}</div>${main}</div>
   <div class="grid cols-2">
