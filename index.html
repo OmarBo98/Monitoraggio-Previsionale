@@ -286,7 +286,7 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
   <div class="topbar-in">
     <div class="brand">
       <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 15l5-5 4 3 7-8"/></svg></div>
-      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16b</span></span></div>
+      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16c</span></span></div>
     </div>
     <div class="spacer"></div>
     <div class="topbtns">
@@ -310,6 +310,7 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
       <button data-view="ricavi">Ricavi</button>
       <button data-view="costi">Costi</button>
       <button data-view="cassa">Cassa</button>
+      <button data-view="scad">Scadenziario</button>
       <button data-view="confronto">Confronto anni</button>
       <button data-view="prev27">Prev. 2027</button>
       <button data-view="accantonamenti">Accantonamenti</button>
@@ -734,6 +735,7 @@ function render(){
   else if(state.view==='ricavi')V.innerHTML=viewRicavi(d,cons);
   else if(state.view==='costi')V.innerHTML=viewCosti(d,cons);
   else if(state.view==='cassa')V.innerHTML=viewCassa(d);
+  else if(state.view==='scad')V.innerHTML=viewScad(d);
   else if(state.view==='confronto')V.innerHTML=viewConfronto(d);
   else if(state.view==='prev27')V.innerHTML=viewPrev27(d);
   else if(state.view==='accantonamenti')V.innerHTML=viewAccantonamenti(d);
@@ -958,6 +960,134 @@ function viewPrev27(d){
   <div class="panel"><div class="panel-head"><div><h3>Ricavi 2027 vs 2025 e previsionale 2026</h3></div></div><div id="p27ric"></div></div>
   <div class="panel"><div class="panel-head"><div><h3>Utile mensile stimato 2027</h3></div></div><div id="p27ut"></div></div>
   <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Base: ultimi 3 anni (2024–2026) per ricavi e costi operativi, con il 2026 da fatture reali gen–ott e stima nov–dic; <b>buste paga</b> dal libro paga reale 2025–2026. Anni recenti pesati di più, picchi straordinari esclusi, trend contenuto (−5%/+8%). Importi netti. È la baseline di budget: confronta qui i consuntivi 2027 man mano.</div>`;
+}
+const SCAD={
+ nsa:{
+  period:'agosto 2025 – luglio 2026 · 12 mesi',
+  uscite:'32.632 €',usciteSett:'7.531 €',entrate:'28.356 €',entrateSett:'6.544 €',
+  saldoMese:'−4.276 €',saldoAnno:'−51.317 €',saldoNeg:true,quotaFissa:'22.906 €',quotaPct:'70%',
+  intro:'Il mese di NSA è sbilanciato: il 73% delle uscite si concentra dopo il 15, perché stipendi e F24 cadono nello stesso periodo. Le prime due settimane sembrano tranquille, ma non lo sono: sono la finestra in cui devi accumulare.',
+  weeks:[
+   {g:'giorni 1 – 7',t:'Settimana 1',tot:'5.161 €',items:['01 · RID fornitore ricorrente ~1.066 €','04 · Rateazione Agenzia Entrate-Riscossione 273,52 € fissi (+697,76 € ogni ~4 mesi)','06 · Rata mutuo 562 €','Bonifici fornitori ~2.500 €']},
+   {g:'giorni 8 – 14',t:'Settimana 2',tot:'3.551 €',items:['Quasi solo bonifici fornitori ~2.830 €','Settimana più leggera del mese: è qui che si costruisce la riserva per la 3ª']},
+   {g:'giorni 15 – 21',t:'Settimana 3 · picco',peak:true,tot:'13.563 €',items:['16 · Stipendi ~7.260 € (giorno più frequente: il 16)','16 · F24 ~3.933 € — imposte e contributi','16 · Carburante Kuwait ~245 €','21 · Rata finanziamento ~449 €']},
+   {g:'giorni 22 – fine',t:'Settimana 4',tot:'10.357 €',items:['20/24 · Coda stipendi ~3.014 €','24 · Polizza Groupama 250 €','26 · Carta di credito ~937 €','26 · Commercialista ~641 € (bimestrale)','fine · F24 coda ~1.849 €']}
+  ],
+  ricorrenti:[
+   ['Stipendi (8 persone in busta)','16 del mese, code al 20 e 24','10.744 €','33%','Fissa'],
+   ['Fornitori e bonifici vari','distribuiti, più densi 1–14','9.087 €','28%','Variabile'],
+   ['F24 — imposte e contributi','16–20, code a fine mese','5.915 €','18%','Fissa'],
+   ['Rate finanziamenti + mutuo','1 · 6 · 21 del mese','3.559 €','11%','Fissa'],
+   ['Rateazione Agenzia Entrate-Riscossione','4–7 del mese','592 €','2%','Fissa'],
+   ['Carta di credito BCC','26 del mese','968 €','3%','Fissa'],
+   ['Carburante (Kuwait Petroleum)','2 addebiti/mese, ~16 e ~fine','715 €','2%','Fissa'],
+   ['Commercialista Studio Farruggio','26, ogni 2 mesi (641 €)','553 €','2%','Fissa'],
+   ['Assicurazioni (polizza Groupama)','24 del mese','305 €','1%','Fissa'],
+   ['Utenze, telefonia, spese banca','5 del mese e sparse','147 €','<1%','Fissa']
+  ],
+  totUscite:'32.632 €',
+  notaF24:'Il F24 è la voce più insidiosa: la media è 5.915 €/mese ma i singoli mesi vanno da 1.848 € (febbraio) a 14.920 € (agosto). Agosto, novembre e dicembre sono i tre mesi pesanti — vanno preparati con settimane di anticipo, non subiti. La rateazione con Agenzia Entrate-Riscossione (273,52 € intorno al 4, più 697,76 € ogni ~4 mesi) è debito fiscale già in piano di rientro: va trattato come una rata fissa.',
+  incassi:['6.420 €','5.517 €','3.626 €','8.100 €','403 €','18.783 €'],
+  oggi:'6.544 €',
+  soglie:[
+   {lab:'Minimo di sopravvivenza',val:'5.300 €',note:'Copre solo le uscite fisse (stipendi, F24, rate, assicurazioni). Sotto questa cifra salta qualcosa che non può saltare.'},
+   {lab:'Pareggio',val:'7.550 €',key:true,note:'Fisse + fornitori. È il livello a cui la cassa smette di scendere. Oggi mancano 1.000 €/settimana.'},
+   {lab:'Target sereno',val:'8.700 €',note:'Pareggio +15%, per assorbire i mesi di F24 pesante e i clienti che pagano tardi. Sono +2.150 €/settimana rispetto a oggi, circa 9.300 €/mese in più.'}
+  ],
+  cuscinetto:'15.000 €',cuscinettoNote:'Serve perché il mese peggiore (giugno 2026: 42.673 €) costa 10.000 € più della media, e il picco della terza settimana da solo vale il doppio di un incasso settimanale.'
+ },
+ sanitech:{
+  period:'luglio 2025 – giugno 2026 · 12 mesi',
+  uscite:'21.755 €',usciteSett:'5.021 €',entrate:'22.465 €',entrateSett:'5.185 €',
+  saldoMese:'+711 €',saldoAnno:'+8.529 €',saldoNeg:false,quotaFissa:'15.017 €',quotaPct:'69%',
+  intro:'Stessa forma di NSA, ancora più concentrata: la terza settimana da sola vale il 47% del mese. Stipendi e F24 cadono insieme intorno al 16–20.',
+  weeks:[
+   {g:'giorni 1 – 7',t:'Settimana 1',tot:'2.831 €',items:['02 · Polizza Groupama 250 €','Bonifici fornitori ~1.750 €','Piccoli POS e spese ~150 €']},
+   {g:'giorni 8 – 14',t:'Settimana 2',tot:'3.251 €',items:['09 · Zenit Srl ~476 €','11 · Rate finanziamento SDD ~864 €','Bonifici fornitori ~2.180 €']},
+   {g:'giorni 15 – 21',t:'Settimana 3 · picco',peak:true,tot:'10.239 €',items:['16 · F24 ~4.447 € — la voce più pesante','16 · Stipendi ~3.956 €','16 · Kinto — noleggio auto 577 €','16 · Ecotek ~330 €','18 · BS Project ~700 €']},
+   {g:'giorni 22 – fine',t:'Settimana 4',tot:'5.433 €',items:['20/24 · Coda stipendi ~2.166 €','25 · Commercialista ~641 € (bimestrale)','Bonifici fornitori ~1.590 €','fine · F24 coda ~630 €']}
+  ],
+  ricorrenti:[
+   ['Stipendi (7 persone in busta)','16 del mese, code al 20 e 24','6.710 €','31%','Fissa'],
+   ['Fornitori e bonifici vari','distribuiti, più densi 1–14','6.536 €','30%','Variabile'],
+   ['F24 — imposte e contributi','17–20','5.101 €','23%','Fissa'],
+   ['Rate finanziamenti SDD','11 del mese','1.189 €','5%','Fissa'],
+   ['Auto — noleggio Kinto / Volkswagen','16 del mese','818 €','4%','Fissa'],
+   ['Assicurazioni','2 del mese','706 €','3%','Fissa'],
+   ['Commercialista Studio Farruggio','25, ogni 2 mesi (641 €)','267 €','1%','Fissa'],
+   ['Spese bancarie, POS, prelievi','sparse','428 €','2%','Variabile']
+  ],
+  totUscite:'21.755 €',
+  notaF24:'Anche qui il F24 detta il ritmo: novembre 2025 è costato 16.192 € e maggio 2026 11.071 €, contro mesi da 1.036 €. Sono i due mesi in cui Sanitech va sotto se non ha accantonato prima.',
+  incassi:['5.087 €','4.697 €','2.459 €','6.639 €','957 €','13.132 €'],
+  oggi:'5.185 €',
+  soglie:[
+   {lab:'Minimo di sopravvivenza',val:'3.470 €',note:'Solo uscite fisse. Sotto questa soglia non si pagano stipendi e F24.'},
+   {lab:'Pareggio',val:'5.030 €',key:true,note:'Fisse + fornitori. Sanitech è già sopra, di poco: +155 €/settimana.'},
+   {lab:'Target sereno',val:'5.800 €',note:'Pareggio +15%. Sono +615 €/settimana rispetto a oggi, circa 2.700 €/mese in più.'}
+  ],
+  cuscinetto:'12.500 €',cuscinettoNote:'Il mese peggiore (maggio 2026: 34.384 €) costa 12.600 € più della media: senza riserva quel mese si chiude in rosso anche incassando normalmente.'
+ }
+};
+function viewScad(d){
+  const co=state.co, s=SCAD[co], ic=s.incassi;
+  const tipoPill=t=>t==='Fissa'?'<span class="pill mut">Fissa</span>':'<span class="pill">Variabile</span>';
+  const kpis=`<div class="kpis">
+    <div class="kpi ink"><div class="bar"></div><div class="lab">Uscite</div><div class="val">${s.uscite}</div><div class="sub"><span class="mut">al mese · ${s.usciteSett}/sett.</span></div></div>
+    <div class="kpi"><div class="bar"></div><div class="lab">Entrate</div><div class="val">${s.entrate}</div><div class="sub"><span class="mut">al mese · ${s.entrateSett}/sett.</span></div></div>
+    <div class="kpi ${s.saldoNeg?'rose':''}"><div class="bar"></div><div class="lab">Saldo</div><div class="val">${s.saldoMese}</div><div class="sub"><span class="pill ${s.saldoNeg?'neg':''}">${s.saldoAnno} nell'anno</span></div></div>
+    <div class="kpi amber"><div class="bar"></div><div class="lab">Quota fissa</div><div class="val">${s.quotaFissa}</div><div class="sub"><span class="mut">${s.quotaPct} delle uscite · non comprimibile</span></div></div>
+  </div>`;
+  const weekCards=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px">${s.weeks.map(w=>`
+    <div style="border:1px solid ${w.peak?'var(--amber)':'var(--line)'};border-radius:12px;padding:14px;background:var(--card)">
+      <div class="sm" style="color:var(--ink-400)">${w.g}</div>
+      <div style="font-weight:600;color:var(--ink-900);margin-top:2px">${w.t}</div>
+      <div style="font-family:var(--mono);font-weight:700;font-size:20px;color:${w.peak?'var(--amber)':'var(--ink-900)'};margin:6px 0 8px">${w.tot}</div>
+      <ul style="margin:0;padding-left:16px;font-size:12px;color:var(--ink-600);line-height:1.55">${w.items.map(i=>`<li>${i}</li>`).join('')}</ul>
+    </div>`).join('')}</div>`;
+  const ricTable=`<div class="tscroll"><table class="dtable"><thead><tr><th>Voce</th><th>Quando</th><th class="r">Al mese</th><th class="r">% uscite</th><th>Tipo</th></tr></thead><tbody>
+    ${s.ricorrenti.map(r=>`<tr><td>${r[0]}</td><td class="sm" style="color:var(--ink-500)">${r[1]}</td><td class="r">${r[2]}</td><td class="r">${r[3]}</td><td>${tipoPill(r[4])}</td></tr>`).join('')}
+    <tr class="tot"><td>Totale uscite</td><td></td><td class="r">${s.totUscite}</td><td class="r">100%</td><td></td></tr>
+  </tbody></table></div>`;
+  const soglie=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:14px">${s.soglie.map(t=>`
+    <div style="border:1px solid ${t.key?'var(--emerald-400)':'var(--line)'};border-radius:12px;padding:14px;background:${t.key?'var(--emerald-50)':'var(--card)'}">
+      <div class="sm" style="color:var(--ink-400)">${t.lab}</div>
+      <div style="font-family:var(--mono);font-weight:700;font-size:20px;color:var(--ink-900);margin:4px 0 6px">${t.val}</div>
+      <div style="font-size:12px;color:var(--ink-600);line-height:1.5">${t.note}</div>
+    </div>`).join('')}</div>`;
+  const incRow=(nome,a)=>`<tr><td>${nome}</td><td class="r">${a[0]}</td><td class="r">${a[1]}</td><td class="r">${a[2]}</td><td class="r">${a[3]}</td><td class="r">${a[4]}</td><td class="r">${a[5]}</td></tr>`;
+  const rule=[
+   ['01','Ogni lunedì, guarda una cifra sola','Quanto è entrato la settimana scorsa. Se è sotto il <b>pareggio</b> (7.550 € NSA / 5.030 € Sanitech), quella settimana ha lasciato un buco da recuperare nelle successive. Segnalo, non dimenticarlo.'],
+   ['02','Nelle settimane 1 e 2 non spendi: accantoni','Sono le settimane leggere (NSA 5.161 € e 3.551 €; Sanitech 2.831 € e 3.251 €) mentre gli incassi continuano a entrare. Quello che avanza <b>non è liquidità disponibile</b>: è la provvista per il 16. Se lo spendi in fornitori, la terza settimana la paghi in fido.'],
+   ['03','Sposta i bonifici fornitori dal 15–20 al 1–10','È l\'unica voce davvero manovrabile (30% delle uscite in entrambe le società). Spostandola nella prima decade il picco della terza settimana scende da 13.563 € a circa 12.000 € per NSA, senza pagare nessuno in ritardo.'],
+   ['04','Accantona il F24 ogni settimana, non il giorno prima','Mettere via 1.365 €/settimana (NSA) e 1.177 €/settimana (Sanitech) su un conto separato copre anche i mesi da 15.000 €. È la singola abitudine che elimina la maggior parte degli imprevisti di cassa.']
+  ];
+  const ruleCards=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:4px">${rule.map(r=>`
+    <div style="border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--card)">
+      <div style="font-family:var(--mono);font-weight:700;color:var(--emerald-600);font-size:13px">${r[0]}</div>
+      <div style="font-weight:600;color:var(--ink-900);margin:4px 0 6px">${r[1]}</div>
+      <div style="font-size:12.5px;color:var(--ink-600);line-height:1.5">${r[2]}</div>
+    </div>`).join('')}</div>`;
+  return `
+  <div class="panel"><div class="panel-head"><div><h3>Scadenziario del flusso di cassa · ${DATA[co].name}</h3><p>Quando escono i soldi, per cosa, e quanto devi incassare ogni settimana per arrivare a fine mese senza affanni. Costruito sui movimenti bancari reali degli ultimi 12 mesi.</p></div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">
+      <div style="border:1px solid ${co==='nsa'?'var(--rose)':'var(--line)'};border-radius:12px;padding:14px;background:var(--card)"><div style="font-weight:700;color:var(--ink-900);margin-bottom:4px">NSA — deficit strutturale di 51.317 € in 12 mesi</div><div style="font-size:12.5px;color:var(--ink-600);line-height:1.5">−4.276 €/mese, −987 €/sett. Non è un problema di date o ritardi negli incassi: il livello di fatturato incassato è sotto il livello dei costi.</div></div>
+      <div style="border:1px solid ${co==='sanitech'?'var(--emerald-400)':'var(--line)'};border-radius:12px;padding:14px;background:var(--card)"><div style="font-weight:700;color:var(--ink-900);margin-bottom:4px">Sanitech — in pareggio, +8.529 € in 12 mesi</div><div style="font-size:12.5px;color:var(--ink-600);line-height:1.5">+711 €/mese. Regge, ma senza margine: basta un mese storto per andare sotto. Serve un cuscinetto, non altro fatturato.</div></div>
+    </div>
+  </div>
+  <div class="panel"><div class="panel-head"><div><h3>${DATA[co].short} · il mese in numeri</h3><p>${s.period}</p></div></div>${kpis}</div>
+  <div class="panel"><div class="panel-head"><div><h3>Come si distribuiscono le uscite dentro il mese</h3><p>${s.intro}</p></div></div>${weekCards}</div>
+  <div class="panel"><div class="panel-head"><div><h3>Le uscite ricorrenti, in ordine di peso</h3></div></div>${ricTable}
+    <div class="note" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>${s.notaF24}</div></div>
+  <div class="panel"><div class="panel-head"><div><h3>Quanto entra oggi, settimana per settimana</h3><p>Per programmare la cassa ragiona sulla <b>mediana</b> (la settimana tipica), non sulla media, tirata su da poche settimane grasse.</p></div></div>
+    <div class="tscroll"><table class="dtable"><thead><tr><th>Società</th><th class="r">Media/sett.</th><th class="r">Mediana/sett.</th><th class="r">1 su 4 sotto</th><th class="r">1 su 4 sopra</th><th class="r">Peggiore</th><th class="r">Migliore</th></tr></thead><tbody>
+    ${incRow('NSA Srl',SCAD.nsa.incassi)}${incRow('Sanitech Srl',SCAD.sanitech.incassi)}
+    </tbody></table></div>
+    <div class="note" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>Gli incassi arrivano quasi tutti da lunedì a venerdì, con un picco il martedì (NSA 29%) e il mercoledì (Sanitech 26%). Nessuna concentrazione a fine mese: gli incassi sono piatti, le uscite no. È da questo disallineamento che nasce la tensione di cassa.</div></div>
+  <div class="panel"><div class="panel-head"><div><h3>Quanto devi incassare a settimana · ${DATA[co].short}</h3><p>Oggi incassa ${s.oggi}/sett. Tre soglie: sopravvivenza, pareggio, e il livello a cui smetti di guardare il saldo ogni mattina.</p></div></div>${soglie}
+    <div class="note" style="margin-top:14px"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><b>Cuscinetto in banca consigliato: ${s.cuscinetto}.</b> ${s.cuscinettoNote}</div></div>
+  <div class="panel"><div class="panel-head"><div><h3>La regola delle quattro settimane</h3><p>Gli incassi arrivano piatti e le uscite a ondate. Queste quattro mosse risolvono il disallineamento senza toccare il fatturato.</p></div></div>${ruleCards}</div>
+  <div class="note"><svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg><b>Fonte.</b> Estratto conto NSA (ago 2025 – ago 2026, 1.558 movimenti) ed estratti entrate/uscite Sanitech (giu 2025 – lug 2026, 1.344 movimenti); 12 mesi pieni per società. Ogni movimento è classificato leggendo la causale bancaria. Le voci «fisse» escono comunque, anche a fatturato zero; le «variabili» sono i bonifici fornitori. Medie settimanali su 4,333 settimane/mese. Dati di cassa (banca), non di competenza: governano la liquidità, non sostituiscono il bilancio.</div>`;
 }
 function viewConfronto(d){
   const cons=getConsuntivo(state.co), am=cons.actualMonths;
