@@ -286,7 +286,7 @@ body{font-family:var(--body);background:var(--bg);color:var(--ink-800);-webkit-f
   <div class="topbar-in">
     <div class="brand">
       <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 15l5-5 4 3 7-8"/></svg></div>
-      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16d</span></span></div>
+      <div class="brand-txt"><b>FluentFinance</b><span>Monitoraggio Previsionale <span style="opacity:.6">· build 2026-11-16e</span></span></div>
     </div>
     <div class="spacer"></div>
     <div class="topbtns">
@@ -1053,7 +1053,7 @@ function scadLive(co){
 function viewScad(d){
   const co=state.co, s=SCAD[co], ic=s.incassi;
   const L=scadLive(co), Ln=scadLive('nsa'), Ls=scadLive('sanitech');
-  const e0=n=>eur(Math.round(n));
+  const e0=n=>Math.round(n).toLocaleString('it-IT',{useGrouping:'always'})+' €';
   const liveBadge=l=>l?`<span class="pill" title="Calcolato dagli estratti che hai caricato">dal vivo · ${l.nWeeks} sett.</span>`:`<span class="pill mut">analisi di riferimento</span>`;
   const tipoPill=t=>t==='Fissa'?'<span class="pill mut">Fissa</span>':'<span class="pill">Variabile</span>';
   const kpis = L ? `<div class="kpis">
